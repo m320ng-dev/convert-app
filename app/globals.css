@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -12,19 +12,113 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
+button,
+a,
+textarea,
+input,
+select {
+  outline-color: #2563eb;
+}
+
+@layer components {
+  .tool-page {
+    width: 100%;
+  }
+
+  .tool-page > div {
+    width: 100%;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    background: #ffffff;
+    padding: clamp(1rem, 2vw, 2rem);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+  }
+
+  .tool-page h1 {
+    margin-bottom: 1.5rem;
+    color: #0f172a;
+    font-size: clamp(1.75rem, 2vw, 2.25rem);
+    font-weight: 750;
+    letter-spacing: 0;
+  }
+
+  .tool-page h2 {
+    color: #0f172a;
+  }
+
+  .tool-page :where(form, .space-y-4 > div, .mt-6, .mt-8) {
+    border-color: #e2e8f0;
+  }
+
+  .tool-page :where(textarea, input[type="text"], input[type="number"], input[type="datetime-local"], select) {
+    border-color: #cbd5e1;
+    border-radius: 0.5rem;
+    background-color: #ffffff;
+    color: #0f172a;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.04);
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .tool-page :where(textarea:focus, input:focus, select:focus) {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgb(37 99 235 / 0.12);
+    outline: none;
+  }
+
+  .tool-page :where(pre, .markdown-preview) {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    background-color: #f8fafc;
+    color: #0f172a;
+  }
+
+  .tool-page :where(button) {
+    border-radius: 0.5rem;
+    font-weight: 600;
+    transition:
+      background-color 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .tool-page :where(button:not(:disabled):hover) {
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
+  }
+
+  .tool-page :where(button:disabled) {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .tool-page :where(label) {
+    color: #334155;
+  }
+
+  .tool-page :where(.text-gray-600, .text-gray-700, .text-gray-500) {
+    color: #475569;
+  }
+
+  @media (max-width: 640px) {
+    .tool-page h1 {
+      margin-bottom: 1rem;
+      font-size: 1.625rem;
+    }
+
+    .tool-page :where(.flex.space-x-4) {
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+  }
+}
 
 /* 사용자 정의 배경 그라데이션 유틸리티 */
 @layer utilities {

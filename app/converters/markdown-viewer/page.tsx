@@ -82,7 +82,7 @@ export default function MarkdownViewer() {
     };
 
     return (
-        <div className="min-h-screen p-8 bg-white">
+        <div className="tool-page">
             <div className="max-w-6xl mx-auto">
                 <h1 className="text-3xl font-bold mb-6">Markdown 뷰어</h1>
 

@@ -125,7 +125,7 @@ export default ${componentName};`;
     }, []);
 
     return (
-        <div className="min-h-screen p-8">
+        <div className="tool-page">
             <div className="max-w-4xl mx-auto">
                 <h1 className="text-3xl font-bold mb-6">SVG → React 변환기</h1>
                 <div className="mb-6">

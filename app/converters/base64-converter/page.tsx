@@ -70,7 +70,7 @@ export default function Base64Converter() {
     };
 
     return (
-        <div className="min-h-screen p-8">
+        <div className="tool-page">
             <div className="max-w-4xl mx-auto">
                 <h1 className="text-3xl font-bold mb-6">Base64 인코더/디코더</h1>
 

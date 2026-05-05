@@ -82,7 +82,7 @@ export default function JsBeautifier() {
     }, []);
 
     return (
-        <div className="min-h-screen p-8">
+        <div className="tool-page">
             <div className="max-w-4xl mx-auto">
                 <h1 className="text-3xl font-bold mb-6">JavaScript 코드 정리</h1>
                 <div className="mb-6">

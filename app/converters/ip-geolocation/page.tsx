@@ -108,7 +108,7 @@ export default function IpGeolocation() {
     }, []);
 
     return (
-        <div className="min-h-screen p-8">
+        <div className="tool-page">
             <div className="max-w-4xl mx-auto">
                 <h1 className="text-3xl font-bold mb-6">IP → 위치정보 변환기</h1>
 
