@@ -7,6 +7,7 @@ on:
       - main
       - develop
     paths:
+      # 앱/배포 설정 변경시에만 Docker 배포 워크플로우를 실행한다.
       - "app/**"
       - "public/**"
       - "Dockerfile"
