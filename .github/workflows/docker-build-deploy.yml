@@ -1,0 +1,169 @@
+name: Docker Build And Deploy
+run-name: Docker Build And Deploy (${{ github.ref_name }})
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - "app/**"
+      - "public/**"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".dockerignore"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.ts"
+      - "tsconfig.json"
+      - "postcss.config.mjs"
+      - "eslint.config.mjs"
+      - ".github/workflows/docker-build-deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - id: filter
+        shell: bash
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed_files="$(git diff --name-only HEAD^ HEAD)"
+          if echo "${changed_files}" | grep -Eq '^(app/|public/|Dockerfile|docker-compose\.yml|\.dockerignore|package\.json|package-lock\.json|next\.config\.ts|tsconfig\.json|postcss\.config\.mjs|eslint\.config\.mjs|\.github/workflows/docker-build-deploy\.yml)'; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "app=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: meta
+        shell: bash
+        run: echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+  docker-build:
+    runs-on: [self-hosted, Linux, X64, docker]
+    needs: changes
+    if: |
+      needs.changes.outputs.app == 'true' &&
+      (github.ref_name == 'develop' || github.ref_name == 'main')
+    env:
+      CONTAINER_REGISTRY: ${{ secrets.CONTAINER_REGISTRY || 'registry.heyo.me' }}
+      CONTAINER_REGISTRY_USERNAME: ${{ secrets.CONTAINER_REGISTRY_USERNAME || 'm320ng' }}
+      CONTAINER_REGISTRY_PASSWORD: ${{ secrets.CONTAINER_REGISTRY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load runner env
+        shell: bash
+        run: |
+          while IFS= read -r line; do
+            [ -n "${line}" ] || continue
+            case "${line}" in \#*) continue ;; esac
+
+            key="${line%%=*}"
+            value="${line#*=}"
+            case "${key}" in
+              *PASSWORD*|*TOKEN*|*SECRET*) echo "::add-mask::${value}" ;;
+            esac
+            echo "${line}" >> "$GITHUB_ENV"
+          done < /tmp/runner/.env
+
+      - name: Login to registry
+        shell: bash
+        run: |
+          echo "${CONTAINER_REGISTRY_PASSWORD}" | docker login "${CONTAINER_REGISTRY}" \
+            -u "${CONTAINER_REGISTRY_USERNAME}" \
+            --password-stdin
+
+      - name: Debug Docker registry access
+        shell: bash
+        run: |
+          docker context ls
+          docker info
+          curl -I "https://${CONTAINER_REGISTRY}/v2/"
+
+      - id: tags
+        shell: bash
+        run: |
+          REGISTRY_IMAGE="${CONTAINER_REGISTRY}/${GITHUB_REPOSITORY#*/}"
+          {
+            echo "value<<EOF"
+            if [ "${GITHUB_REF_NAME}" = "develop" ]; then
+              echo "${REGISTRY_IMAGE}:develop"
+            elif [ "${GITHUB_REF_NAME}" = "main" ]; then
+              echo "${REGISTRY_IMAGE}:${SHORT_SHA}"
+              echo "${REGISTRY_IMAGE}:latest"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          SHORT_SHA: ${{ needs.changes.outputs.short_sha }}
+
+      - name: Build and push app image
+        shell: bash
+        run: |
+          first_tag="$(printf '%s\n' "${TAGS}" | head -n 1)"
+          : "${first_tag:?at least one Docker tag is required}"
+
+          docker build -t "${first_tag}" .
+
+          printf '%s\n' "${TAGS}" | tail -n +2 | while IFS= read -r tag; do
+            [ -n "${tag}" ] || continue
+            docker tag "${first_tag}" "${tag}"
+          done
+
+          printf '%s\n' "${TAGS}" | while IFS= read -r tag; do
+            [ -n "${tag}" ] || continue
+            docker push "${tag}"
+          done
+        env:
+          TAGS: ${{ steps.tags.outputs.value }}
+
+  deploy-dockge:
+    runs-on: [self-hosted, Linux, X64, docker]
+    needs:
+      - changes
+      - docker-build
+    if: |
+      always() &&
+      needs.changes.outputs.app == 'true' &&
+      (github.ref_name == 'develop' || github.ref_name == 'main') &&
+      needs.docker-build.result != 'failure'
+    steps:
+      - name: Load runner env
+        shell: bash
+        run: |
+          while IFS= read -r line; do
+            [ -n "${line}" ] || continue
+            case "${line}" in \#*) continue ;; esac
+
+            key="${line%%=*}"
+            value="${line#*=}"
+            case "${key}" in
+              *PASSWORD*|*TOKEN*|*SECRET*) echo "::add-mask::${value}" ;;
+            esac
+            echo "${line}" >> "$GITHUB_ENV"
+          done < /tmp/runner/.env
+
+      - name: Call Dockge API
+        shell: bash
+        env:
+          STACK_NAME: ${{ github.event.repository.name }}
+        run: |
+          curl --fail -X POST "${DOCKGE_API_URL}/stacks/${STACK_NAME}/pull-up" \
+            -H "Authorization: Bearer ${DOCKGE_API_TOKEN}"

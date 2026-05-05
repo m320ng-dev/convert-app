@@ -1,12 +1,20 @@
 services:
-  convertapp:
-    container_name: convertapp
-    image: convertapp:latest
-    restart: always
-    user: "1000:1000"
+  convert-app:
+    container_name: convert-app
+    image: registry.heyo.me/convert-app:latest
+    restart: unless-stopped
+    user: 1000:1000
     networks:
       - proxy-net
-
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=proxy-net
+      - traefik.http.routers.convertapp.rule=Host(`tool.heyo.me`)
+      - traefik.http.routers.convertapp.entrypoints=web
+      - traefik.http.services.convertapp.loadbalancer.server.port=3000
 networks:
   proxy-net:
     external: true

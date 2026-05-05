@@ -25,21 +25,21 @@ export default function HashGenerator() {
         new Set(['md5', 'sha1', 'sha256'])
     );
 
-    const generateHashes = (text: string) => {
+    const generateHashes = useCallback((text: string, algorithms = selectedAlgorithms) => {
         if (!text.trim()) {
             setResults([]);
             return;
         }
 
         const newResults = ALGORITHMS
-            .filter(algo => selectedAlgorithms.has(algo.id))
+            .filter(algo => algorithms.has(algo.id))
             .map(algo => ({
                 algorithm: algo.name,
                 hash: algo.fn(text).toString()
             }));
 
         setResults(newResults);
-    };
+    }, [selectedAlgorithms]);
 
     const handlePaste = useCallback((e: ClipboardEvent) => {
         // textarea나 input에서의 붙여넣기는 무시
@@ -52,7 +52,7 @@ export default function HashGenerator() {
             setInput(text);
             generateHashes(text);
         }
-    }, []);
+    }, [generateHashes]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const value = e.target.value;
@@ -85,7 +85,7 @@ export default function HashGenerator() {
             newSelected.add(algorithmId);
         }
         setSelectedAlgorithms(newSelected);
-        generateHashes(input);
+        generateHashes(input, newSelected);
     };
 
     useEffect(() => {

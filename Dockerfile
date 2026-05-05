@@ -1,9 +1,10 @@
 # 빌드 스테이지
 FROM node:20-alpine AS builder
 WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 COPY . .
 RUN npm run build
 
@@ -12,8 +13,9 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# 먼저 파일들을 복사
+# standalone 실행에 필요한 산출물만 복사
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public

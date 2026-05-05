@@ -10,6 +10,15 @@ interface FileInfo {
     base64: string;
 }
 
+const convertToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = error => reject(error);
+    });
+};
+
 export default function ImageToBase64() {
     const [files, setFiles] = useState<FileInfo[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -89,15 +98,6 @@ export default function ImageToBase64() {
             'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']
         }
     });
-
-    const convertToBase64 = (file: File): Promise<string> => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = error => reject(error);
-        });
-    };
 
     const copyToClipboard = async (base64: string) => {
         try {
