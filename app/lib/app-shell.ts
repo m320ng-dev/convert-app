@@ -54,7 +54,7 @@ export const globalNavigationItems: GlobalNavigationItem[] = [
     id: 'home',
     label: '홈',
     href: '/',
-    description: 'ConvertApp 첫 화면으로 이동',
+    description: 'DevTools 첫 화면으로 이동',
   },
   {
     id: 'tools',

@@ -4,23 +4,23 @@ import { converterGroups, converters } from './lib/converters';
 export default function Home() {
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">등록된 도구</p>
-          <p className="mt-3 text-3xl font-bold tracking-tight text-slate-950">
+      <section className="grid gap-3 md:grid-cols-3">
+        <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <p className="text-xs font-medium text-slate-500">등록된 도구</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
             {converters.length}
           </p>
         </div>
-        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">카테고리</p>
-          <p className="mt-3 text-3xl font-bold tracking-tight text-slate-950">
+        <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <p className="text-xs font-medium text-slate-500">카테고리</p>
+          <p className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
             {converterGroups.length}
           </p>
         </div>
-        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-sm font-medium text-slate-500">작업 방식</p>
-          <p className="mt-3 text-lg font-semibold text-slate-950">브라우저 중심</p>
-          <p className="mt-1 text-sm text-slate-500">대부분의 변환은 로컬에서 처리됩니다.</p>
+        <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <p className="text-xs font-medium text-slate-500">작업 방식</p>
+          <p className="mt-1 text-base font-semibold text-slate-950">브라우저 중심</p>
+          <p className="text-xs text-slate-500">대부분의 변환은 로컬에서 처리됩니다.</p>
         </div>
       </section>
 

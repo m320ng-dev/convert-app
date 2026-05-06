@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ConvertApp",
+  title: "DevTools",
   description: "개발자 변환 도구 대시보드",
 };
 

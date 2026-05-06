@@ -24,7 +24,7 @@ export function AppShell({ children }: AppShellProps) {
       <div className="lg:hidden">
         <div className="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur">
           <Link href="/" className="text-sm font-bold tracking-tight text-slate-950">
-            ConvertApp
+            DevTools
           </Link>
           <button
             type="button"
@@ -56,11 +56,11 @@ export function AppShell({ children }: AppShellProps) {
         <div className="flex h-16 items-center justify-between border-b border-slate-200 px-5">
           <Link href="/" onClick={closeDrawer} className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-950 text-sm font-bold text-white">
-              CA
+              DT
             </span>
             <span>
               <span className="block text-sm font-bold tracking-tight text-slate-950">
-                ConvertApp
+                DevTools
               </span>
               <span className="block text-xs text-slate-500">Developer utilities</span>
             </span>
@@ -144,7 +144,7 @@ export function AppShell({ children }: AppShellProps) {
             <header className="mb-6 flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  ConvertApp
+                  DevTools
                 </p>
                 <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
                   {pageTitle}
