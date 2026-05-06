@@ -4,6 +4,10 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+import { CopyResultAction } from '@/app/components/copy-result-action';
+import { FileToolInput } from '@/app/components/file-tool-input';
+import type { LocalFileInput } from '@/app/lib/local-file-input';
+
 const DEFAULT_MARKDOWN = `# 마크다운 미리보기
 
 ## 기본 문법
@@ -65,18 +69,44 @@ interface CodeProps {
 export default function MarkdownViewer() {
     const [markdown, setMarkdown] = useState(DEFAULT_MARKDOWN);
     const [showPreview, setShowPreview] = useState(true);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+    const [loadedFileName, setLoadedFileName] = useState<string | null>(null);
+    const [fileError, setFileError] = useState<string | null>(null);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setMarkdown(e.target.value);
+        setLoadedFileName(null);
+        setFileError(null);
     };
 
-    const copyToClipboard = async (text: string) => {
-        try {
-            await navigator.clipboard.writeText(text);
-            alert('클립보드에 복사되었습니다!');
-        } catch (error) {
-            console.error('복사 실패:', error);
-            alert('클립보드에 복사하지 못했습니다.');
+    const handleLocalFilesRead = (inputs: LocalFileInput[]) => {
+        setFileError(null);
+
+        if (inputs.length === 0) {
+            setLoadedFileName(null);
+            return;
+        }
+
+        const [input] = inputs;
+        const text = input.text ?? '';
+
+        if (!text.trim()) {
+            setLoadedFileName(null);
+            setFileError('내용이 있는 마크다운 또는 텍스트 파일을 선택해주세요.');
+            return;
+        }
+
+        setMarkdown(input.text ?? '');
+        setLoadedFileName(input.name);
+        setShowPreview(true);
+    };
+
+    const handleSelectedFilesChange = (files: File[]) => {
+        setSelectedFiles(files);
+
+        if (files.length === 0) {
+            setLoadedFileName(null);
+            setFileError(null);
         }
     };
 
@@ -86,6 +116,31 @@ export default function MarkdownViewer() {
                 <h1 className="text-3xl font-bold mb-6">Markdown 뷰어</h1>
 
                 <div className="mb-6">
+                    <FileToolInput
+                        id="markdown-file-input"
+                        label="마크다운 파일"
+                        selectedFiles={selectedFiles}
+                        onFilesChange={handleSelectedFilesChange}
+                        readMode="text"
+                        onLocalFilesRead={handleLocalFilesRead}
+                        onLocalFileReadError={(message) => setFileError(message)}
+                        accept=".md,.markdown,.txt,text/markdown,text/plain"
+                        helperText="마크다운 또는 텍스트 파일을 선택하면 브라우저에서 로컬로 읽어 미리보기에 반영합니다."
+                        containerClassName="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+                    />
+
+                    {loadedFileName && (
+                        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm font-medium text-blue-700">
+                            불러온 파일: {loadedFileName}
+                        </div>
+                    )}
+
+                    {fileError && (
+                        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+                            {fileError}
+                        </div>
+                    )}
+
                     <div className="flex space-x-4 mb-4">
                         <button
                             onClick={() => setShowPreview(true)}
@@ -113,12 +168,14 @@ export default function MarkdownViewer() {
                                 <label className="text-sm font-medium text-gray-700">
                                     마크다운 입력
                                 </label>
-                                <button
-                                    onClick={() => copyToClipboard(markdown)}
-                                    className="text-sm text-blue-500 hover:text-blue-600 transition-colors"
-                                >
-                                    복사
-                                </button>
+                                <CopyResultAction
+                                    value={markdown}
+                                    label="입력 복사"
+                                    ariaLabel="Markdown 입력값 복사"
+                                    copiedMessage="Markdown 입력값을 클립보드에 복사했습니다."
+                                    emptyMessage="복사할 Markdown 입력값이 없습니다."
+                                    disabled={!markdown.trim()}
+                                />
                             </div>
                             <textarea
                                 value={markdown}
@@ -134,6 +191,14 @@ export default function MarkdownViewer() {
                                     <label className="text-sm font-medium text-gray-700">
                                         미리보기
                                     </label>
+                                    <CopyResultAction
+                                        value={markdown}
+                                        label="원문 복사"
+                                        ariaLabel="Markdown 미리보기 원문 복사"
+                                        copiedMessage="Markdown 원문을 클립보드에 복사했습니다."
+                                        emptyMessage="복사할 Markdown 원문이 없습니다."
+                                        disabled={!markdown.trim()}
+                                    />
                                 </div>
                                 <div className="markdown-preview w-full h-[calc(100vh-300px)] p-6 border rounded-lg overflow-y-auto bg-white border-gray-200">
                                     <ReactMarkdown

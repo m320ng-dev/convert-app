@@ -3,6 +3,12 @@
 import type { HTMLAttributes, ReactNode } from 'react';
 
 import { CopyResultAction } from '@/app/components/copy-result-action';
+import {
+  DEFAULT_TOOL_ERROR_MESSAGE,
+  resolveToolErrorMessage,
+} from '@/app/lib/tool-error-message';
+
+export type ToolProcessingStage = 'parsing' | 'normalizing' | 'converting' | 'complete';
 
 interface ResultsPanelProps {
   title: string;
@@ -16,9 +22,14 @@ interface ResultsPanelProps {
   copyEmptyMessage?: string;
   children: ReactNode;
   emptyMessage: string;
+  errorMessage?: string | null;
+  defaultErrorMessage?: string;
   isEmpty: boolean;
   isLoading?: boolean;
   loadingMessage?: string;
+  processingStage?: ToolProcessingStage;
+  failureStage?: ToolProcessingStage | null;
+  successLabel?: string;
   className?: string;
   bodyClassName?: string;
   bodyProps?: HTMLAttributes<HTMLDivElement>;
@@ -36,16 +47,31 @@ export function ResultsPanel({
   copyEmptyMessage = '복사할 결과가 없습니다.',
   children,
   emptyMessage,
+  errorMessage = null,
+  defaultErrorMessage = DEFAULT_TOOL_ERROR_MESSAGE,
   isEmpty,
   isLoading = false,
   loadingMessage = '결과를 준비하고 있습니다.',
+  processingStage,
+  failureStage = null,
+  successLabel,
   className = '',
   bodyClassName = 'app-panel-body',
   bodyProps,
 }: ResultsPanelProps) {
   const { className: bodyPropsClassName, ...restBodyProps } = bodyProps ?? {};
   const resolvedBodyClassName = [bodyClassName, bodyPropsClassName].filter(Boolean).join(' ');
+  const panelErrorMessage =
+    errorMessage === null || errorMessage === undefined
+      ? null
+      : resolveToolErrorMessage(errorMessage, defaultErrorMessage);
   const hasHeaderActions = Boolean(actions) || copyValue !== undefined;
+  const resolvedProcessingStage = processingStage ?? resolveResultProcessingStage({
+    isLoading,
+    isEmpty,
+    hasError: Boolean(panelErrorMessage),
+  });
+  const resolvedFailureStage = panelErrorMessage ? (failureStage ?? resolvedProcessingStage) : null;
 
   return (
     <section className={`app-panel app-panel-flat ${className}`.trim()}>
@@ -66,7 +92,7 @@ export function ResultsPanel({
                 ariaLabel={copyAriaLabel}
                 copiedMessage={copyCopiedMessage}
                 emptyMessage={copyEmptyMessage}
-                disabled={copyDisabled || isLoading || isEmpty}
+                disabled={copyDisabled || isLoading || isEmpty || Boolean(panelErrorMessage)}
               />
             )}
           </div>
@@ -76,18 +102,52 @@ export function ResultsPanel({
       <div
         {...restBodyProps}
         aria-busy={isLoading}
+        data-processing-stage={resolvedProcessingStage}
+        data-failure-stage={resolvedFailureStage ?? undefined}
         className={resolvedBodyClassName}
       >
         {isLoading ? (
           <ResultStatusState message={loadingMessage} tone="loading" />
+        ) : panelErrorMessage ? (
+          <ResultStatusState message={panelErrorMessage} tone="error" />
         ) : isEmpty ? (
           <ResultStatusState message={emptyMessage} tone="empty" />
         ) : (
-          children
+          <div
+            data-result-state="success"
+            role="region"
+            aria-label={successLabel ?? title}
+          >
+            {children}
+          </div>
         )}
       </div>
     </section>
   );
+}
+
+function resolveResultProcessingStage({
+  isLoading,
+  isEmpty,
+  hasError,
+}: {
+  isLoading: boolean;
+  isEmpty: boolean;
+  hasError: boolean;
+}): ToolProcessingStage {
+  if (isLoading) {
+    return 'converting';
+  }
+
+  if (hasError) {
+    return 'converting';
+  }
+
+  if (isEmpty) {
+    return 'parsing';
+  }
+
+  return 'complete';
 }
 
 export function FormattedResultBlock({
@@ -126,6 +186,7 @@ export function FormattedResultBlock({
         <CopyResultAction
           value={value}
           label="복사"
+          ariaLabel={`${title} 복사`}
           copiedMessage={copiedMessage}
           emptyMessage={emptyMessage}
           disabled={!value}
@@ -152,13 +213,18 @@ function ResultStatusState({
   tone,
 }: {
   message: string;
-  tone: 'empty' | 'loading';
+  tone: 'empty' | 'loading' | 'error';
 }) {
   return (
     <div
-      role="status"
+      role={tone === 'error' ? 'alert' : 'status'}
       aria-live="polite"
-      className="grid min-h-80 place-items-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm font-medium text-slate-500"
+      data-result-state={tone}
+      className={`grid min-h-80 place-items-center rounded-lg border border-dashed px-4 py-10 text-center text-sm font-medium ${
+        tone === 'error'
+          ? 'border-red-200 bg-red-50 text-red-700'
+          : 'border-slate-300 bg-slate-50 text-slate-500'
+      }`}
     >
       <div className="grid justify-items-center gap-3">
         {tone === 'loading' && (

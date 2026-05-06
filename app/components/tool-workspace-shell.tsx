@@ -156,7 +156,7 @@ export function ToolWorkspaceShell({
           </p>
 
           <div className="mt-4 grid gap-2">
-            {toolNavigationItems.slice(0, 8).map((tool) => {
+            {toolNavigationItems.map((tool) => {
               const isActive = tool.id === activeTool?.id;
 
               return (

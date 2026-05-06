@@ -25,6 +25,20 @@ test('decodes a valid JWT into header, payload, and signature values', () => {
   assert.equal(decoded.signature, 'aSPoKN1kmeuNzktPMvYLHgAxoy1Wp07FNtsLH2fLFm4');
 });
 
+test('decodes header and payload without validating the signature segment', () => {
+  const token = `${toBase64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))}.${toBase64Url(JSON.stringify({ sub: 'local-only' }))}.not-a-real-signature+with-invalid-base64`;
+  const decoded = decodeJwt(token);
+
+  assert.deepEqual(decoded.header, {
+    alg: 'HS256',
+    typ: 'JWT',
+  });
+  assert.deepEqual(decoded.payload, {
+    sub: 'local-only',
+  });
+  assert.equal(decoded.signature, 'not-a-real-signature+with-invalid-base64');
+});
+
 test('generates a valid HS256 JWT with the requested header and payload', async () => {
   const token = await generateJwt({
     algorithm: 'HS256',
@@ -80,3 +94,7 @@ test('round trips generated JWT content through the decoder', async () => {
   assert.deepEqual(decoded.payload, payload);
   assert.match(decoded.signature, /^[A-Za-z0-9_-]+$/);
 });
+
+function toBase64Url(value) {
+  return Buffer.from(value, 'utf8').toString('base64url');
+}

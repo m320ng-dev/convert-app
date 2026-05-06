@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 
+import { CopyResultAction } from '@/app/components/copy-result-action';
+
 export default function HtmlToMarkdown() {
     const [markdown, setMarkdown] = useState('');
     const [showInput, setShowInput] = useState(false);
@@ -63,16 +65,6 @@ export default function HtmlToMarkdown() {
         }
     };
 
-    const copyToClipboard = async () => {
-        try {
-            await navigator.clipboard.writeText(markdown);
-            alert('클립보드에 복사되었습니다!');
-        } catch (error) {
-            console.error('복사 실패:', error);
-            alert('클립보드에 복사하지 못했습니다');
-        }
-    };
-
     useEffect(() => {
         document.addEventListener('paste', handlePaste);
         return () => {
@@ -120,12 +112,14 @@ export default function HtmlToMarkdown() {
                     <div className="mt-6">
                         <div className="flex justify-between items-center mb-2">
                             <h2 className="text-xl font-semibold">변환 결과:</h2>
-                            <button
-                                onClick={copyToClipboard}
-                                className="text-blue-500 hover:text-blue-600"
-                            >
-                                클립보드에 복사
-                            </button>
+                            <CopyResultAction
+                                value={markdown}
+                                label="결과 복사"
+                                ariaLabel="Markdown 변환 결과 복사"
+                                copiedMessage="Markdown 변환 결과를 클립보드에 복사했습니다."
+                                emptyMessage="복사할 Markdown 변환 결과가 없습니다."
+                                disabled={!markdown}
+                            />
                         </div>
                         <pre className="bg-gray-100 p-4 rounded-lg whitespace-pre-wrap">
                             {markdown}

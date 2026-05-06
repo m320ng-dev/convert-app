@@ -29,6 +29,6 @@ test('JWT generator exposes generation-specific Korean success and error states 
   assert.match(jwtPageSource, /const \[generatorError, setGeneratorError\]/);
   assert.match(jwtPageSource, /const \[generatorMessage, setGeneratorMessage\]/);
   assert.match(jwtPageSource, /JWT를 생성하는 중 오류가 발생했습니다\./);
-  assert.match(jwtPageSource, /role="alert"/);
-  assert.match(jwtPageSource, /role="status"/);
+  assert.match(jwtPageSource, /<ToolValidationMessage message=\{generatorError\}/);
+  assert.match(jwtPageSource, /<ToolValidationMessage[\s\S]*message=\{generatorMessage\}[\s\S]*tone="success"/);
 });

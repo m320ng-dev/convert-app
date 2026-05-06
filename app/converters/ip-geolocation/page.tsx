@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 
+import { CopyResultAction } from '@/app/components/copy-result-action';
+
 interface GeoLocation {
     ip: string;
     country: string;
@@ -79,16 +81,6 @@ export default function IpGeolocation() {
         }
     };
 
-    const copyToClipboard = async (text: string) => {
-        try {
-            await navigator.clipboard.writeText(text);
-            alert('클립보드에 복사되었습니다!');
-        } catch (error) {
-            console.error('복사 실패:', error);
-            alert('클립보드에 복사하지 못했습니다');
-        }
-    };
-
     // 초기 로딩 시 클라이언트 IP 가져오기
     useEffect(() => {
         const fetchClientIp = async () => {
@@ -136,12 +128,15 @@ export default function IpGeolocation() {
                         <div className="border rounded-lg p-4 space-y-2">
                             <div className="flex items-center justify-between">
                                 <h3 className="font-semibold">입력된 IP</h3>
-                                <button
-                                    onClick={() => copyToClipboard(input)}
+                                <CopyResultAction
+                                    value={input}
+                                    label="복사"
+                                    ariaLabel="IP 주소 입력값 복사"
+                                    copiedMessage="IP 주소 입력값을 클립보드에 복사했습니다."
+                                    emptyMessage="복사할 IP 주소 입력값이 없습니다."
+                                    disabled={!input}
                                     className="text-blue-500 hover:text-blue-600 text-sm"
-                                >
-                                    복사
-                                </button>
+                                />
                             </div>
                             <pre className="bg-gray-100 p-3 rounded-lg text-sm font-mono overflow-x-auto">
                                 {input}

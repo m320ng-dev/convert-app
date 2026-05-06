@@ -1,224 +1,381 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import CryptoJS from 'crypto-js';
+import { useCallback, useMemo, useState } from 'react';
 
-interface HashResult {
-    algorithm: string;
-    hash: string;
-}
+import { CopyResultAction } from '@/app/components/copy-result-action';
+import { FileToolInput } from '@/app/components/file-tool-input';
+import { ResultsPanel, type ToolProcessingStage } from '@/app/components/results-panel';
+import { TextToolInput } from '@/app/components/text-tool-input';
+import { ToolValidationMessage } from '@/app/components/tool-validation-message';
+import {
+  formatHashResultsForCopy,
+  generateHashResults,
+  HASH_ALGORITHMS,
+  verifyHash,
+  type HashAlgorithmId,
+  type HashResult,
+  type HashVerificationResult,
+} from '@/app/lib/hash-generator';
+import type { LocalFileInput } from '@/app/lib/local-file-input';
+import { createInputValidationFailure, resolveToolErrorMessage } from '@/app/lib/tool-error-message';
 
-const ALGORITHMS = [
-    { id: 'md5', name: 'MD5', fn: CryptoJS.MD5 },
-    { id: 'sha1', name: 'SHA-1', fn: CryptoJS.SHA1 },
-    { id: 'sha256', name: 'SHA-256', fn: CryptoJS.SHA256 },
-    { id: 'sha512', name: 'SHA-512', fn: CryptoJS.SHA512 },
-    { id: 'sha3', name: 'SHA-3', fn: CryptoJS.SHA3 },
-    { id: 'ripemd160', name: 'RIPEMD160', fn: CryptoJS.RIPEMD160 }
-];
+const DEFAULT_SELECTED_ALGORITHMS: HashAlgorithmId[] = ['md5', 'sha1', 'sha256'];
+const DEFAULT_ERROR_MESSAGE = '해시 생성 또는 검증 중 오류가 발생했습니다.';
+const emptyInputFailure = createInputValidationFailure('해시를 생성할 텍스트를 입력해주세요.');
 
-export default function HashGenerator() {
-    const [input, setInput] = useState('');
-    const [results, setResults] = useState<HashResult[]>([]);
-    const [showInput, setShowInput] = useState(false);
-    const [selectedAlgorithms, setSelectedAlgorithms] = useState<Set<string>>(
-        new Set(['md5', 'sha1', 'sha256'])
-    );
+export default function HashGeneratorPage() {
+  const [input, setInput] = useState('convertapp');
+  const [selectedAlgorithms, setSelectedAlgorithms] = useState<Set<HashAlgorithmId>>(
+    new Set(DEFAULT_SELECTED_ALGORITHMS),
+  );
+  const [verificationAlgorithm, setVerificationAlgorithm] = useState<HashAlgorithmId>('sha256');
+  const [expectedHash, setExpectedHash] = useState('');
+  const [results, setResults] = useState<HashResult[]>([]);
+  const [verification, setVerification] = useState<HashVerificationResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [errorStage, setErrorStage] = useState<ToolProcessingStage | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [fileMessage, setFileMessage] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
 
-    const generateHashes = useCallback((text: string, algorithms = selectedAlgorithms) => {
-        if (!text.trim()) {
-            setResults([]);
-            return;
-        }
+  const selectedAlgorithmIds = useMemo(
+    () => HASH_ALGORITHMS
+      .filter((algorithm) => selectedAlgorithms.has(algorithm.id))
+      .map((algorithm) => algorithm.id),
+    [selectedAlgorithms],
+  );
+  const copyValue = results.length > 0 ? formatHashResultsForCopy(results, verification) : '';
 
-        const newResults = ALGORITHMS
-            .filter(algo => algorithms.has(algo.id))
-            .map(algo => ({
-                algorithm: algo.name,
-                hash: algo.fn(text).toString()
-            }));
+  const generateHashes = useCallback((
+    text: string,
+    algorithms: readonly HashAlgorithmId[] = selectedAlgorithmIds,
+  ) => {
+    if (!text.trim()) {
+      setResults([]);
+      setVerification(null);
+      setErrorStage('parsing');
+      setError(emptyInputFailure.message);
+      return;
+    }
 
-        setResults(newResults);
-    }, [selectedAlgorithms]);
+    try {
+      const nextResults = generateHashResults(text, algorithms);
+      setResults(nextResults);
+      setVerification(null);
+      setErrorStage(null);
+      setError(null);
+    } catch (caughtError) {
+      setResults([]);
+      setVerification(null);
+      setErrorStage('converting');
+      setError(resolveToolErrorMessage(caughtError, DEFAULT_ERROR_MESSAGE));
+    }
+  }, [selectedAlgorithmIds]);
 
-    const handlePaste = useCallback((e: ClipboardEvent) => {
-        // textarea나 input에서의 붙여넣기는 무시
-        if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) {
-            return;
-        }
+  const handleInputChange = (value: string) => {
+    setInput(value);
 
-        const text = e.clipboardData?.getData('text');
-        if (text) {
-            setInput(text);
-            generateHashes(text);
-        }
-    }, [generateHashes]);
+    if (value.trim()) {
+      generateHashes(value);
+      return;
+    }
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const value = e.target.value;
-        setInput(value);
-        generateHashes(value);
-    };
+    setResults([]);
+    setVerification(null);
+    setErrorStage('parsing');
+    setError(emptyInputFailure.message);
+  };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (input.trim()) {
-            generateHashes(input);
-        }
-    };
+  const handleGenerate = () => {
+    generateHashes(input);
+  };
 
-    const copyToClipboard = async (hash: string) => {
-        try {
-            await navigator.clipboard.writeText(hash);
-            alert('클립보드에 복사되었습니다!');
-        } catch (error) {
-            console.error('복사 실패:', error);
-            alert('클립보드에 복사하지 못했습니다');
-        }
-    };
+  const handleVerify = () => {
+    try {
+      const nextResults = generateHashResults(input, selectedAlgorithmIds);
+      const nextVerification = verifyHash({
+        text: input,
+        algorithm: verificationAlgorithm,
+        expectedHash,
+      });
 
-    const toggleAlgorithm = (algorithmId: string) => {
-        const newSelected = new Set(selectedAlgorithms);
-        if (newSelected.has(algorithmId)) {
-            newSelected.delete(algorithmId);
-        } else {
-            newSelected.add(algorithmId);
-        }
-        setSelectedAlgorithms(newSelected);
-        generateHashes(input, newSelected);
-    };
+      setResults(nextResults);
+      setVerification(nextVerification);
+      setErrorStage(null);
+      setError(null);
+    } catch (caughtError) {
+      setVerification(null);
+      setErrorStage('converting');
+      setError(resolveToolErrorMessage(caughtError, DEFAULT_ERROR_MESSAGE));
+    }
+  };
 
-    useEffect(() => {
-        document.addEventListener('paste', handlePaste);
-        return () => {
-            document.removeEventListener('paste', handlePaste);
-        };
-    }, [handlePaste]);
+  async function handlePasteExpectedHashFromClipboard() {
+    try {
+      if (typeof navigator === 'undefined' || !navigator.clipboard?.readText) {
+        setErrorStage('normalizing');
+        setError('클립보드에서 텍스트를 가져오지 못했습니다.');
+        return;
+      }
 
-    return (
-        <div className="min-h-screen p-8">
-            <div className="max-w-4xl mx-auto">
-                <h1 className="text-3xl font-bold mb-6">Hash 생성기</h1>
+      const clipboardText = await navigator.clipboard.readText();
 
-                <div className="mb-6">
-                    <p className="mb-2 text-gray-600">
-                        텍스트를 복사한 후 이 페이지에서 <kbd className="px-2 py-1 bg-gray-100 rounded">Ctrl</kbd> + <kbd className="px-2 py-1 bg-gray-100 rounded">V</kbd> 를 눌러주세요.
-                    </p>
-                    <button
-                        onClick={() => setShowInput(!showInput)}
-                        className="text-blue-500 hover:text-blue-600 text-sm"
-                    >
-                        {showInput ? '직접 입력 숨기기' : '또는 직접 입력하기'}
-                    </button>
-                </div>
+      setExpectedHash(clipboardText.trim());
+      setErrorStage(null);
+      setError(null);
+    } catch {
+      setErrorStage('normalizing');
+      setError('클립보드에서 텍스트를 가져오지 못했습니다.');
+    }
+  }
 
-                <div className="mb-6">
-                    <h2 className="text-lg font-semibold mb-2">해시 알고리즘 선택</h2>
-                    <div className="flex flex-wrap gap-2">
-                        {ALGORITHMS.map(algo => (
-                            <button
-                                key={algo.id}
-                                onClick={() => toggleAlgorithm(algo.id)}
-                                className={`px-3 py-1 rounded text-sm ${selectedAlgorithms.has(algo.id)
-                                    ? 'bg-blue-500 text-white'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
-                            >
-                                {algo.name}
-                            </button>
-                        ))}
-                    </div>
-                </div>
+  const toggleAlgorithm = (algorithmId: HashAlgorithmId) => {
+    const nextSelectedAlgorithms = new Set(selectedAlgorithms);
 
-                {showInput && (
-                    <form onSubmit={handleSubmit} className="mb-6">
-                        <div className="space-y-2">
-                            <textarea
-                                value={input}
-                                onChange={handleInputChange}
-                                placeholder="해시값을 생성할 텍스트를 입력하세요..."
-                                className="w-full h-48 p-4 border rounded-lg font-mono text-sm"
-                            />
-                            <button
-                                type="submit"
-                                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 text-sm"
-                            >
-                                해시 생성
-                            </button>
-                        </div>
-                    </form>
-                )}
+    if (nextSelectedAlgorithms.has(algorithmId)) {
+      nextSelectedAlgorithms.delete(algorithmId);
+    } else {
+      nextSelectedAlgorithms.add(algorithmId);
+    }
 
-                {input.trim() && (
-                    <div className="mb-6">
-                        <div className="border rounded-lg p-4 space-y-2">
-                            <div className="flex items-center justify-between">
-                                <h3 className="font-semibold">원문</h3>
-                                <button
-                                    onClick={() => copyToClipboard(input)}
-                                    className="text-blue-500 hover:text-blue-600 text-sm"
-                                >
-                                    복사
-                                </button>
-                            </div>
-                            <pre className="bg-gray-100 p-3 rounded-lg text-sm font-mono overflow-x-auto whitespace-pre-wrap">
-                                {input}
-                            </pre>
-                        </div>
-                    </div>
-                )}
+    setSelectedAlgorithms(nextSelectedAlgorithms);
 
-                {results.length > 0 && (
-                    <div className="space-y-4">
-                        <h2 className="text-xl font-semibold">생성된 해시값</h2>
-                        {results.map((result) => (
-                            <div
-                                key={result.algorithm}
-                                className="border rounded-lg p-4 space-y-2"
-                            >
-                                <div className="flex items-center justify-between">
-                                    <h3 className="font-semibold">{result.algorithm}</h3>
-                                    <button
-                                        onClick={() => copyToClipboard(result.hash)}
-                                        className="text-blue-500 hover:text-blue-600 text-sm"
-                                    >
-                                        복사
-                                    </button>
-                                </div>
-                                <pre className="bg-gray-100 p-3 rounded-lg text-sm font-mono overflow-x-auto">
-                                    {result.hash}
-                                </pre>
-                            </div>
-                        ))}
-                    </div>
-                )}
+    if (input.trim()) {
+      generateHashes(input, Array.from(nextSelectedAlgorithms));
+    }
+  };
 
-                <div className="mt-8">
-                    <h2 className="text-xl font-semibold mb-4">도움말</h2>
-                    <ul className="list-disc pl-5 space-y-2 text-gray-600">
-                        <li>
-                            지원하는 해시 알고리즘:
-                            <ul className="list-disc pl-5 mt-2 space-y-1">
-                                <li>MD5 (128비트)</li>
-                                <li>SHA-1 (160비트)</li>
-                                <li>SHA-256 (256비트)</li>
-                                <li>SHA-512 (512비트)</li>
-                                <li>SHA-3 (Keccak)</li>
-                                <li>RIPEMD160 (160비트)</li>
-                            </ul>
-                        </li>
-                        <li>
-                            텍스트를 복사한 후 <kbd className="px-2 py-1 bg-gray-100 rounded">Ctrl</kbd> + <kbd className="px-2 py-1 bg-gray-100 rounded">V</kbd>를 누르거나, &quot;직접 입력하기&quot;를 클릭하여 입력할 수 있습니다.
-                        </li>
-                        <li>
-                            여러 해시 알고리즘을 동시에 선택하여 비교할 수 있습니다.
-                        </li>
-                        <li>
-                            &quot;복사&quot; 버튼을 클릭하여 원문이나 해시값을 클립보드에 복사할 수 있습니다.
-                        </li>
-                    </ul>
-                </div>
-            </div>
+  const handleLocalFilesRead = useCallback((inputs: LocalFileInput[]) => {
+    setFileError(null);
+
+    if (inputs.length === 0) {
+      setFileMessage(null);
+      return;
+    }
+
+    const combinedText = inputs
+      .map((input) => input.text ?? '')
+      .join('\n');
+
+    if (!combinedText.trim()) {
+      setInput('');
+      setResults([]);
+      setVerification(null);
+      setErrorStage('parsing');
+      setFileMessage(null);
+      setFileError('텍스트가 있는 파일을 선택해주세요.');
+      return;
+    }
+
+    setInput(combinedText);
+    generateHashes(combinedText);
+    setFileMessage('선택한 파일의 텍스트를 해시 입력으로 사용했습니다.');
+  }, [generateHashes]);
+
+  const handleSelectedFilesChange = useCallback((files: File[]) => {
+    setSelectedFiles(files);
+
+    if (files.length === 0) {
+      setFileMessage(null);
+      setFileError(null);
+    }
+  }, []);
+
+  return (
+    <div className="app-stack">
+      <section className="app-panel app-panel-flat app-panel-body">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="app-kicker text-slate-500">보안 유틸리티</p>
+            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
+              해시 생성/검증
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              텍스트나 로컬 파일 내용을 MD5, SHA 계열, RIPEMD160 해시로 계산하고 예상 해시와 비교합니다.
+            </p>
+          </div>
+          <span className="app-chip rounded-lg">로컬 처리</span>
         </div>
-    );
-} 
+
+        <div className="mt-5 grid gap-4">
+          <TextToolInput
+            id="hash-generator-input"
+            label="원문 텍스트"
+            value={input}
+            onValueChange={handleInputChange}
+            exampleValue="convertapp local hash sample"
+            placeholder="해시를 생성하거나 검증할 텍스트를 입력하세요."
+            minHeightClassName="min-h-48"
+          />
+
+          <FileToolInput
+            id="hash-file-input"
+            label="텍스트 파일"
+            selectedFiles={selectedFiles}
+            onFilesChange={handleSelectedFilesChange}
+            readMode="text"
+            onLocalFilesRead={handleLocalFilesRead}
+            onLocalFileReadError={(message) => setFileError(message)}
+            accept=".txt,.json,.md,.csv,.log,.env,text/*,application/json"
+            multiple
+            helperText="텍스트 기반 파일을 선택하면 브라우저에서 로컬로 읽은 내용의 해시값을 생성합니다."
+          />
+
+          <div>
+            <h3 className="text-sm font-semibold text-slate-800">해시 알고리즘</h3>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {HASH_ALGORITHMS.map((algorithm) => (
+                <button
+                  key={algorithm.id}
+                  type="button"
+                  onClick={() => toggleAlgorithm(algorithm.id)}
+                  className={`rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+                    selectedAlgorithms.has(algorithm.id)
+                      ? 'border-slate-950 bg-slate-950 text-white'
+                      : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {algorithm.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,180px)_minmax(0,1fr)]">
+              <div>
+                <label htmlFor="hash-verification-algorithm" className="text-sm font-semibold text-slate-800">
+                  검증 알고리즘
+                </label>
+                <select
+                  id="hash-verification-algorithm"
+                  value={verificationAlgorithm}
+                  onChange={(event) => setVerificationAlgorithm(event.target.value as HashAlgorithmId)}
+                  className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                >
+                  {HASH_ALGORITHMS.map((algorithm) => (
+                    <option key={algorithm.id} value={algorithm.id}>
+                      {algorithm.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <label htmlFor="hash-expected-value" className="text-sm font-semibold text-slate-800">
+                    검증할 해시값
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handlePasteExpectedHashFromClipboard}
+                    className="rounded-md border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    클립보드 붙여넣기
+                  </button>
+                  <CopyResultAction
+                    value={expectedHash}
+                    label="입력값 복사"
+                    ariaLabel="검증할 해시 입력값 복사"
+                    copiedMessage="검증할 해시 입력값을 클립보드에 복사했습니다."
+                    emptyMessage="복사할 검증 해시 입력값이 없습니다."
+                    disabled={!expectedHash}
+                    className="px-3 py-1.5"
+                  />
+                </div>
+                <input
+                  id="hash-expected-value"
+                  value={expectedHash}
+                  onChange={(event) => setExpectedHash(event.target.value)}
+                  placeholder="비교할 해시 문자열"
+                  className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
+            </div>
+
+            {verification && (
+              <ToolValidationMessage
+                message={verification.message}
+                tone={verification.isMatch ? 'success' : 'warning'}
+              />
+            )}
+          </div>
+
+          {fileMessage && <ToolValidationMessage message={fileMessage} tone="success" />}
+          <ToolValidationMessage message={fileError ?? error} />
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleGenerate}
+              className="inline-flex min-h-11 items-center justify-center rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              해시 생성
+            </button>
+            <button
+              type="button"
+              onClick={handleVerify}
+              className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-slate-50"
+            >
+              해시 검증
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <ResultsPanel
+        title="생성된 해시값"
+        description="선택한 알고리즘별 해시와 선택적 검증 결과를 확인합니다."
+        copyValue={copyValue}
+        copyLabel="해시 결과 복사"
+        copyAriaLabel="해시 생성 및 검증 결과 복사"
+        copyCopiedMessage="해시 결과를 클립보드에 복사했습니다."
+        copyEmptyMessage="복사할 해시 결과가 없습니다."
+        emptyMessage={error ? '오류를 해결하면 결과가 표시됩니다.' : '해시 생성 버튼을 누르면 결과가 표시됩니다.'}
+        errorMessage={error}
+        defaultErrorMessage={DEFAULT_ERROR_MESSAGE}
+        isEmpty={results.length === 0}
+        processingStage={results.length > 0 ? 'complete' : 'converting'}
+        failureStage={errorStage}
+      >
+        <div className="grid gap-4">
+          {verification && (
+            <div
+              className={`rounded-lg border p-4 text-sm ${
+                verification.isMatch
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border-amber-200 bg-amber-50 text-amber-800'
+              }`}
+            >
+              <p className="font-semibold">{verification.message}</p>
+              <dl className="mt-3 grid gap-2">
+                <div>
+                  <dt className="text-xs font-bold uppercase text-slate-500">예상 해시</dt>
+                  <dd className="mt-1 break-all font-mono">{verification.expectedHash}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-bold uppercase text-slate-500">계산 해시</dt>
+                  <dd className="mt-1 break-all font-mono">{verification.actualHash}</dd>
+                </div>
+              </dl>
+            </div>
+          )}
+
+          <div className="grid gap-3">
+            {results.map((result) => (
+              <section
+                key={result.algorithm}
+                className="result-output rounded-lg border border-slate-200 bg-slate-950 p-4 text-slate-100"
+              >
+                <h3 className="text-sm font-bold">{result.algorithm}</h3>
+                <pre className="mt-3 overflow-auto text-sm leading-6">
+                  <code className="break-all font-mono">{result.hash}</code>
+                </pre>
+              </section>
+            ))}
+          </div>
+        </div>
+      </ResultsPanel>
+    </div>
+  );
+}

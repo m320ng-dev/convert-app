@@ -1,146 +1,89 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { format } from 'sql-formatter';
+import { useMemo, useState } from 'react';
 
-export default function SqlFormatter() {
-    const [input, setInput] = useState('');
-    const [output, setOutput] = useState('');
-    const [showInput, setShowInput] = useState(false);
-    const [directInput, setDirectInput] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+import { ResultsPanel } from '@/app/components/results-panel';
+import { TextToolInput } from '@/app/components/text-tool-input';
+import { ToolValidationMessage } from '@/app/components/tool-validation-message';
+import { formatSqlText } from '@/app/lib/sql-formatter-tool';
+import {
+  createInputValidationFailure,
+  executeToolConversion,
+} from '@/app/lib/tool-error-message';
 
-    const handlePaste = async (e: ClipboardEvent) => {
-        // textarea나 input에서의 붙여넣기는 무시
-        if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) {
-            return;
-        }
+const emptyInputFailure = createInputValidationFailure('SQL 쿼리를 입력해주세요.');
 
-        try {
-            const text = e.clipboardData?.getData('text');
-            if (text) {
-                setInput(text);
-                formatSql(text);
-            }
-        } catch (error) {
-            console.error('붙여넣기 실패:', error);
-            alert('클립보드에서 가져오지 못했습니다');
-        }
-    };
+export default function SqlFormatterPage() {
+  const [input, setInput] = useState('select id, name from users where active = true order by created_at desc');
 
-    const formatSql = (sql: string) => {
-        try {
-            setIsLoading(true);
-            const formatted = format(sql, {
-                language: 'sql',
-                tabWidth: 4,
-                keywordCase: 'upper',
-                linesBetweenQueries: 2,
-            });
-            setOutput(formatted);
-        } catch (error) {
-            console.error('SQL 포맷팅 중 오류 발생:', error);
-            alert('SQL 쿼리 포맷팅에 실패했습니다. 쿼리문을 확인해주세요.');
-        } finally {
-            setIsLoading(false);
-        }
-    };
+  const { output, error, emptyMessage } = useMemo(() => {
+    if (!input.trim()) {
+      return {
+        output: '',
+        error: emptyInputFailure.message,
+        emptyMessage: emptyInputFailure.emptyMessage,
+      };
+    }
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (directInput.trim()) {
-            setInput(directInput);
-            formatSql(directInput);
-        }
-    };
+    return executeToolConversion({
+      input,
+      transform: (input) => formatSqlText(input),
+      emptyInputMessage: emptyInputFailure.message,
+      emptyResultMessage: 'SQL 쿼리를 입력하면 결과가 표시됩니다.',
+      defaultErrorMessage: 'SQL 포맷팅 중 오류가 발생했습니다.',
+    });
+  }, [input]);
 
-    const copyToClipboard = async () => {
-        try {
-            await navigator.clipboard.writeText(output);
-            alert('클립보드에 복사되었습니다!');
-        } catch (error) {
-            console.error('복사 실패:', error);
-            alert('클립보드에 복사하지 못했습니다');
-        }
-    };
+  const copyValue = output;
 
-    useEffect(() => {
-        document.addEventListener('paste', handlePaste);
-        return () => {
-            document.removeEventListener('paste', handlePaste);
-        };
-    }, []);
-
-    return (
-        <div className="min-h-screen p-8">
-            <div className="max-w-4xl mx-auto">
-                <h1 className="text-3xl font-bold mb-6">SQL 쿼리 포맷터</h1>
-                <div className="mb-6">
-                    <p className="mb-2 text-gray-600">
-                        SQL 쿼리를 복사한 후 이 페이지에서 <kbd className="px-2 py-1 bg-gray-100 rounded">Ctrl</kbd> + <kbd className="px-2 py-1 bg-gray-100 rounded">V</kbd> 를 눌러주세요.
-                    </p>
-                    <button
-                        onClick={() => setShowInput(!showInput)}
-                        className="text-blue-500 hover:text-blue-600 text-sm"
-                    >
-                        {showInput ? '직접 입력 숨기기' : '또는 직접 입력하기'}
-                    </button>
-                </div>
-
-                {showInput && (
-                    <form onSubmit={handleSubmit} className="mb-6">
-                        <div className="space-y-2">
-                            <textarea
-                                value={directInput}
-                                onChange={(e) => setDirectInput(e.target.value)}
-                                className="w-full h-48 p-4 border rounded-lg font-mono text-sm"
-                                placeholder="SQL 쿼리를 여기에 입력하세요..."
-                            />
-                            <button
-                                type="submit"
-                                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 text-sm"
-                                disabled={!directInput.trim() || isLoading}
-                            >
-                                {isLoading ? '포맷팅 중...' : '포맷팅하기'}
-                            </button>
-                        </div>
-                    </form>
-                )}
-
-                <div className="space-y-4">
-                    {input && (
-                        <div>
-                            <h2 className="text-xl font-semibold mb-2">입력된 쿼리:</h2>
-                            <pre className="bg-gray-100 p-4 rounded-lg whitespace-pre-wrap font-mono text-sm overflow-auto max-h-48">
-                                {input}
-                            </pre>
-                        </div>
-                    )}
-
-                    {isLoading && (
-                        <div className="text-center text-gray-600">
-                            SQL 쿼리를 포맷팅하는 중...
-                        </div>
-                    )}
-
-                    {output && !isLoading && (
-                        <div className="mt-6">
-                            <div className="flex justify-between items-center mb-2">
-                                <h2 className="text-xl font-semibold">포맷팅된 쿼리:</h2>
-                                <button
-                                    onClick={copyToClipboard}
-                                    className="text-blue-500 hover:text-blue-600 text-sm"
-                                >
-                                    클립보드에 복사
-                                </button>
-                            </div>
-                            <pre className="bg-gray-100 p-4 rounded-lg whitespace-pre-wrap font-mono text-sm overflow-auto max-h-96">
-                                {output}
-                            </pre>
-                        </div>
-                    )}
-                </div>
-            </div>
+  return (
+    <div className="app-stack">
+      <section className="app-panel app-panel-flat app-panel-body">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="app-kicker text-slate-500">Code Utility</p>
+            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
+              SQL 쿼리 포맷터
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              외부 API 없이 브라우저에서만 처리됩니다.
+            </p>
+          </div>
+          <span className="app-chip rounded-lg">로컬 처리</span>
         </div>
-    );
-} 
+
+        <div className="mt-5 grid gap-4">
+          <TextToolInput
+            id="sql-formatter-input"
+            label="SQL 입력"
+            value={input}
+            onValueChange={setInput}
+            exampleValue="select id, name from users where active = true order by created_at desc"
+            placeholder="SELECT * FROM users WHERE active = true"
+            minHeightClassName="min-h-64"
+          />
+
+          <ToolValidationMessage message={error} />
+        </div>
+      </section>
+
+      <ResultsPanel
+        title="포맷팅 결과"
+        description="SQL 키워드와 줄바꿈을 읽기 쉬운 형태로 정리합니다."
+        copyValue={copyValue}
+        copyLabel="결과 복사"
+        copyAriaLabel="SQL 포맷팅 결과 복사"
+        copyCopiedMessage="SQL 결과를 클립보드에 복사했습니다."
+        copyEmptyMessage="복사할 SQL 결과가 없습니다."
+        emptyMessage={emptyMessage}
+        errorMessage={error}
+        defaultErrorMessage="SQL 포맷팅 중 오류가 발생했습니다."
+        isEmpty={!output}
+      >
+        <pre className="result-output max-h-[560px] overflow-auto rounded-lg border border-slate-200 bg-slate-950 p-4 text-sm leading-6 text-slate-100">
+          <code className="break-words font-mono">{output}</code>
+        </pre>
+      </ResultsPanel>
+    </div>
+  );
+}

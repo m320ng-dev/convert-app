@@ -1,169 +1,127 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
-export default function TimestampConverter() {
-    const [timestamp, setTimestamp] = useState('');
-    const [date, setDate] = useState('');
-    const [error, setError] = useState<string | null>(null);
+import { ResultsPanel } from '@/app/components/results-panel';
+import { TextToolInput } from '@/app/components/text-tool-input';
+import { ToolValidationMessage } from '@/app/components/tool-validation-message';
+import { convertTimestampText, type TimestampMode } from '@/app/lib/timestamp-converter';
+import {
+  createInputValidationFailure,
+  executeToolConversion,
+} from '@/app/lib/tool-error-message';
 
-    const convertTimestampToDate = (ts: string) => {
-        try {
-            setError(null);
-            const num = parseInt(ts);
-            if (isNaN(num)) {
-                throw new Error('유효한 Unix timestamp가 아닙니다.');
-            }
+const modeOptions: Array<{
+  id: TimestampMode;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: 'timestamp-to-date',
+    label: 'Timestamp → ISO 날짜',
+    description: '초 또는 밀리초 단위 Unix timestamp를 ISO 날짜로 변환합니다.',
+  },
+  {
+    id: 'date-to-timestamp',
+    label: '날짜 → Timestamp',
+    description: '브라우저가 해석할 수 있는 날짜 문자열을 초 단위 timestamp로 변환합니다.',
+  },
+];
 
-            // 밀리초 단위인지 초 단위인지 확인
-            const timestamp = num.toString().length > 10 ? num : num * 1000;
-            const dateObj = new Date(timestamp);
+const emptyInputFailure = createInputValidationFailure('Timestamp 또는 날짜를 입력해주세요.');
 
-            if (dateObj.toString() === 'Invalid Date') {
-                throw new Error('유효한 Unix timestamp가 아닙니다.');
-            }
+export default function TimestampConverterPage() {
+  const [input, setInput] = useState('1704067200');
+  const [mode, setMode] = useState<TimestampMode>('timestamp-to-date');
 
-            // ISO 문자열에서 밀리초와 Z 제거
-            const isoString = dateObj.toISOString();
-            const formattedDate = isoString.substring(0, 19);
-            setDate(formattedDate);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : '변환 중 오류가 발생했습니다.');
-            setDate('');
-        }
-    };
+  const { output, error, emptyMessage } = useMemo(() => {
+    if (!input.trim()) {
+      return {
+        output: '',
+        error: emptyInputFailure.message,
+        emptyMessage: emptyInputFailure.emptyMessage,
+      };
+    }
 
-    const convertDateToTimestamp = (dateStr: string) => {
-        try {
-            setError(null);
-            const dateObj = new Date(dateStr);
+    return executeToolConversion({
+      input,
+      transform: (input) => convertTimestampText(input, mode),
+      emptyInputMessage: emptyInputFailure.message,
+      emptyResultMessage: 'Timestamp 또는 날짜를 입력하면 결과가 표시됩니다.',
+      defaultErrorMessage: 'Timestamp 변환 중 오류가 발생했습니다.',
+    });
+  }, [input, mode]);
 
-            if (dateObj.toString() === 'Invalid Date') {
-                throw new Error('유효한 날짜가 아닙니다.');
-            }
+  const activeMode = modeOptions.find((option) => option.id === mode);
+  const copyValue = output;
 
-            const ts = Math.floor(dateObj.getTime() / 1000);
-            setTimestamp(ts.toString());
-        } catch (err) {
-            setError(err instanceof Error ? err.message : '변환 중 오류가 발생했습니다.');
-            setTimestamp('');
-        }
-    };
-
-    const handleTimestampChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        setTimestamp(value);
-        if (value.trim()) {
-            convertTimestampToDate(value);
-        } else {
-            setDate('');
-            setError(null);
-        }
-    };
-
-    const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        setDate(value);
-        if (value.trim()) {
-            convertDateToTimestamp(value);
-        } else {
-            setTimestamp('');
-            setError(null);
-        }
-    };
-
-    const getCurrentTimestamp = () => {
-        const now = Math.floor(Date.now() / 1000);
-        setTimestamp(now.toString());
-        convertTimestampToDate(now.toString());
-    };
-
-    const getCurrentDate = () => {
-        const now = new Date();
-        const isoString = now.toISOString();
-        const formattedDate = isoString.substring(0, 19);
-        setDate(formattedDate);
-        convertDateToTimestamp(formattedDate);
-    };
-
-    return (
-        <div className="min-h-screen p-8">
-            <div className="max-w-4xl mx-auto">
-                <h1 className="text-3xl font-bold mb-6">Unix Timestamp ↔ 날짜 변환기</h1>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Unix Timestamp 입력 */}
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <label className="block text-lg font-semibold">
-                                Unix Timestamp
-                            </label>
-                            <button
-                                onClick={getCurrentTimestamp}
-                                className="text-blue-500 hover:text-blue-600 text-sm"
-                            >
-                                현재 시간 가져오기
-                            </button>
-                        </div>
-                        <input
-                            type="text"
-                            value={timestamp}
-                            onChange={handleTimestampChange}
-                            placeholder="예: 1704067200"
-                            className="w-full p-3 border rounded-lg font-mono text-sm"
-                        />
-                        <p className="text-sm text-gray-500">
-                            초 단위(10자리) 또는 밀리초 단위(13자리)를 입력하세요
-                        </p>
-                    </div>
-
-                    {/* 일반 날짜 입력 */}
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <label className="block text-lg font-semibold">
-                                날짜
-                            </label>
-                            <button
-                                onClick={getCurrentDate}
-                                className="text-blue-500 hover:text-blue-600 text-sm"
-                            >
-                                현재 시간 가져오기
-                            </button>
-                        </div>
-                        <input
-                            type="datetime-local"
-                            value={date}
-                            onChange={handleDateChange}
-                            step="1"
-                            className="w-full p-3 border rounded-lg font-mono text-sm"
-                        />
-                    </div>
-                </div>
-
-                {error && (
-                    <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
-                        {error}
-                    </div>
-                )}
-
-                <div className="mt-8">
-                    <h2 className="text-xl font-semibold mb-4">도움말</h2>
-                    <ul className="list-disc pl-5 space-y-2 text-gray-600">
-                        <li>
-                            Unix timestamp는 1970년 1월 1일 00:00:00 UTC부터 경과한 시간을 초 단위로 나타낸 값입니다.
-                        </li>
-                        <li>
-                            초 단위(10자리)와 밀리초 단위(13자리) 모두 지원합니다.
-                        </li>
-                        <li>
-                            날짜 입력은 브라우저의 datetime-local 입력을 사용하며, 초 단위까지 지원합니다.
-                        </li>
-                        <li>
-                            &quot;현재 시간 가져오기&quot; 버튼을 클릭하면 현재 시간이 자동으로 입력됩니다.
-                        </li>
-                    </ul>
-                </div>
-            </div>
+  return (
+    <div className="app-stack">
+      <section className="app-panel app-panel-flat app-panel-body">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="app-kicker text-slate-500">Data Utility</p>
+            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
+              Unix Timestamp ↔ 날짜
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Unix timestamp와 날짜 문자열을 외부 API 없이 브라우저에서 변환합니다.
+            </p>
+          </div>
+          <span className="app-chip rounded-lg">로컬 처리</span>
         </div>
-    );
-} 
+
+        <div className="mt-5 grid gap-4">
+          <div>
+            <label htmlFor="timestamp-converter-mode" className="text-sm font-semibold text-slate-800">
+              변환 모드
+            </label>
+            <select
+              id="timestamp-converter-mode"
+              value={mode}
+              onChange={(event) => setMode(event.target.value as TimestampMode)}
+              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              {modeOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs leading-5 text-slate-500">{activeMode?.description}</p>
+          </div>
+
+          <TextToolInput
+            id="timestamp-converter-input"
+            label={mode === 'timestamp-to-date' ? 'Unix timestamp 입력' : '날짜 입력'}
+            value={input}
+            onValueChange={setInput}
+            exampleValue={mode === 'timestamp-to-date' ? '1704067200' : '2024-01-01T00:00:00Z'}
+            placeholder={mode === 'timestamp-to-date' ? '1704067200 또는 1704067200000' : '2024-01-01T00:00:00Z'}
+            minHeightClassName="min-h-40"
+          />
+
+          <ToolValidationMessage message={error} />
+        </div>
+      </section>
+
+      <ResultsPanel
+        title="변환 결과"
+        description="선택한 방향으로 timestamp와 날짜를 변환합니다."
+        copyValue={copyValue}
+        copyLabel="결과 복사"
+        copyAriaLabel="Timestamp 변환 결과 복사"
+        copyCopiedMessage="Timestamp 변환 결과를 클립보드에 복사했습니다."
+        copyEmptyMessage="복사할 Timestamp 변환 결과가 없습니다."
+        emptyMessage={emptyMessage}
+        errorMessage={error}
+        defaultErrorMessage="Timestamp 변환 중 오류가 발생했습니다."
+        isEmpty={!output}
+      >
+        <pre className="result-output max-h-[560px] overflow-auto rounded-lg border border-slate-200 bg-slate-950 p-4 text-sm leading-6 text-slate-100">
+          <code className="break-words font-mono">{output}</code>
+        </pre>
+      </ResultsPanel>
+    </div>
+  );
+}

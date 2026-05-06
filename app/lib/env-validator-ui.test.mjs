@@ -25,10 +25,20 @@ test('.env validator updates empty, valid, warning, and error feedback from curr
   assert.match(envValidatorPageSource, /getEnvValidationFeedbackState/);
   assert.match(envValidatorPageSource, /const liveFeedback = useMemo/);
   assert.match(envValidatorPageSource, /getEnvValidationFeedbackState\(input\)/);
-  assert.match(envValidatorPageSource, /aria-live="polite"/);
-  assert.match(envValidatorPageSource, /liveFeedback\.tone === 'empty'/);
-  assert.match(envValidatorPageSource, /liveFeedback\.tone === 'valid'/);
-  assert.match(envValidatorPageSource, /liveFeedback\.tone === 'warning'/);
-  assert.match(envValidatorPageSource, /liveFeedback\.tone === 'error'/);
+  assert.match(envValidatorPageSource, /ToolValidationMessage/);
+  assert.match(envValidatorPageSource, /message=\{liveFeedback\.message\}/);
+  assert.match(envValidatorPageSource, /tone=\{liveFeedback\.tone === 'valid' \? 'success' : liveFeedback\.tone\}/);
+  assert.match(envValidatorPageSource, /tone: 'valid'/);
+  assert.match(envValidatorPageSource, /tone: 'warning'/);
+  assert.match(envValidatorPageSource, /tone: 'error'/);
   assert.doesNotMatch(envValidatorPageSource, /clearTransientState\(\);/);
+});
+
+test('.env validator shows validation state and error guidance inside the result area', () => {
+  assert.match(envValidatorPageSource, /title="검증 결과"/);
+  assert.match(envValidatorPageSource, /aria-label="현재 \.env 검증 상태"/);
+  assert.match(envValidatorPageSource, /상태 메시지/);
+  assert.match(envValidatorPageSource, /\{liveFeedback\.message\}/);
+  assert.match(envValidatorPageSource, /\{hasBlockingError \? '오류 있음' : visibleIssues\.length > 0 \? '경고 있음' : '검증 통과'\}/);
+  assert.match(envValidatorPageSource, /getEnvIssueFeedback\(issue\)\.message/);
 });

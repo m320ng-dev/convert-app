@@ -1,7 +1,13 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { useDropzone } from 'react-dropzone';
+
+import { CopyResultAction } from '@/app/components/copy-result-action';
+import {
+    FileToolInput,
+    formatFileSize,
+} from '@/app/components/file-tool-input';
+import { readLocalFileInputs, type LocalFileInput } from '@/app/lib/local-file-input';
 
 interface FileInfo {
     name: string;
@@ -10,17 +16,9 @@ interface FileInfo {
     base64: string;
 }
 
-const convertToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = error => reject(error);
-    });
-};
-
 export default function ImageToBase64() {
     const [files, setFiles] = useState<FileInfo[]>([]);
+    const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
     const [error, setError] = useState<string | null>(null);
 
     const handlePaste = useCallback(async (e: ClipboardEvent) => {
@@ -36,12 +34,12 @@ export default function ImageToBase64() {
                 if (!file) continue;
 
                 try {
-                    const base64 = await convertToBase64(file);
+                    const [input] = await readLocalFileInputs([file], 'dataUrl');
                     newFiles.push({
                         name: `붙여넣은 이미지 ${new Date().toLocaleTimeString()}`,
                         size: file.size,
                         type: file.type,
-                        base64: base64,
+                        base64: input.dataUrl ?? '',
                     });
                 } catch (err) {
                     console.error('파일 변환 중 오류:', err);
@@ -65,60 +63,37 @@ export default function ImageToBase64() {
         };
     }, [handlePaste]);
 
-    const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const convertLocalInputs = useCallback((inputs: LocalFileInput[]) => {
         setError(null);
         const newFiles: FileInfo[] = [];
 
-        for (const file of acceptedFiles) {
-            if (!file.type.startsWith('image/')) {
+        for (const input of inputs) {
+            if (!input.type.startsWith('image/')) {
                 setError('이미지 파일만 지원됩니다.');
                 continue;
             }
 
-            try {
-                const base64 = await convertToBase64(file);
-                newFiles.push({
-                    name: file.name,
-                    size: file.size,
-                    type: file.type,
-                    base64: base64,
-                });
-            } catch (err) {
-                console.error('파일 변환 중 오류:', err);
-                setError('파일을 변환하는 중 오류가 발생했습니다.');
-            }
+            newFiles.push({
+                name: input.name,
+                size: input.size,
+                type: input.type,
+                base64: input.dataUrl ?? '',
+            });
         }
 
         setFiles(prev => [...prev, ...newFiles]);
     }, []);
 
-    const { getRootProps, getInputProps, isDragActive } = useDropzone({
-        onDrop,
-        accept: {
-            'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']
-        }
-    });
+    const handleSelectedFilesChange = useCallback((nextFiles: File[]) => {
+        setSelectedFiles(nextFiles);
 
-    const copyToClipboard = async (base64: string) => {
-        try {
-            await navigator.clipboard.writeText(base64);
-            alert('클립보드에 복사되었습니다!');
-        } catch (error) {
-            console.error('복사 실패:', error);
-            alert('클립보드에 복사하지 못했습니다');
+        if (nextFiles.length === 0) {
+            setError(null);
         }
-    };
+    }, []);
 
     const removeFile = (index: number) => {
         setFiles(prev => prev.filter((_, i) => i !== index));
-    };
-
-    const formatFileSize = (bytes: number): string => {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
     return (
@@ -126,44 +101,26 @@ export default function ImageToBase64() {
             <div className="max-w-4xl mx-auto">
                 <h1 className="text-3xl font-bold mb-6">이미지 → Base64 변환기</h1>
 
-                <div
-                    {...getRootProps()}
-                    className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-                        ${isDragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-500'}`}
-                >
-                    <input {...getInputProps()} />
-                    <div className="space-y-2">
-                        <svg
-                            className="mx-auto h-12 w-12 text-gray-400"
-                            stroke="currentColor"
-                            fill="none"
-                            viewBox="0 0 48 48"
-                            aria-hidden="true"
-                        >
-                            <path
-                                d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                            />
-                        </svg>
-                        <div className="text-lg">
-                            {isDragActive ? (
-                                <p className="text-blue-500">이미지를 여기에 놓으세요...</p>
-                            ) : (
-                                <p>
-                                    이미지를 드래그하여 놓거나 <span className="text-blue-500">클릭</span>하여 선택하세요
-                                </p>
-                            )}
-                        </div>
-                        <p className="text-sm text-gray-500">
-                            PNG, JPG, GIF, BMP, WEBP 파일 지원
-                        </p>
-                        <p className="text-sm text-gray-500 mt-2">
-                            또는 <kbd className="px-2 py-1 bg-gray-100 rounded">Ctrl</kbd> + <kbd className="px-2 py-1 bg-gray-100 rounded">V</kbd>로 클립보드의 이미지를 붙여넣을 수 있습니다
-                        </p>
-                    </div>
-                </div>
+                <FileToolInput
+                    id="image-files"
+                    label="이미지 파일"
+                    selectedFiles={selectedFiles}
+                    onFilesChange={handleSelectedFilesChange}
+                    readMode="dataUrl"
+                    onLocalFilesRead={convertLocalInputs}
+                    onLocalFileReadError={(message) => setError(message)}
+                    accept="image/png,image/jpeg,image/gif,image/bmp,image/webp"
+                    multiple
+                    helperText={
+                        <>
+                            PNG, JPG, GIF, BMP, WEBP 파일을 선택하거나{' '}
+                            <kbd className="rounded bg-slate-100 px-2 py-1">Ctrl</kbd> +{' '}
+                            <kbd className="rounded bg-slate-100 px-2 py-1">V</kbd>로
+                            클립보드 이미지를 붙여넣을 수 있습니다.
+                        </>
+                    }
+                    containerClassName="rounded-lg border border-slate-200 bg-white p-5 shadow-sm"
+                />
 
                 {error && (
                     <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
@@ -183,13 +140,15 @@ export default function ImageToBase64() {
                                             {file.type} • {formatFileSize(file.size)}
                                         </p>
                                     </div>
-                                    <div className="space-x-2">
-                                        <button
-                                            onClick={() => copyToClipboard(file.base64)}
-                                            className="px-3 py-1 text-sm text-blue-500 hover:text-blue-600"
-                                        >
-                                            복사
-                                        </button>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <CopyResultAction
+                                            value={file.base64}
+                                            label="Base64 복사"
+                                            ariaLabel={`${file.name} Base64 결과 복사`}
+                                            copiedMessage="Base64 문자열을 클립보드에 복사했습니다."
+                                            emptyMessage="복사할 Base64 문자열이 없습니다."
+                                            disabled={!file.base64}
+                                        />
                                         <button
                                             onClick={() => removeFile(index)}
                                             className="px-3 py-1 text-sm text-red-500 hover:text-red-600"

@@ -7,9 +7,14 @@ import {
   getActiveGlobalNavigationItemId,
   globalNavigationItems,
 } from './app-shell.ts';
+import { getToolNavigationItems } from './tool-registry.ts';
 
-const navigationSource = readFileSync(
-  resolve(import.meta.dirname, '../components/tool-navigation.tsx'),
+const appShellSource = readFileSync(
+  resolve(import.meta.dirname, '../components/AppShell.tsx'),
+  'utf8',
+);
+const workspaceSource = readFileSync(
+  resolve(import.meta.dirname, '../components/tool-workspace-shell.tsx'),
   'utf8',
 );
 
@@ -34,18 +39,24 @@ test('global navigation marks active routes for home and converter pages', () =>
   assert.equal(getActiveGlobalNavigationItemId('/unknown'), null);
 });
 
-test('converter desktop navigation renders global links with active page state', () => {
-  assert.match(navigationSource, /aria-label="전역 탐색"/);
-  assert.match(navigationSource, /md:flex/);
-  assert.match(navigationSource, /globalNavigationItems\.map/);
-  assert.match(navigationSource, /aria-current=\{isGlobalActive \? 'page' : undefined\}/);
-  assert.match(navigationSource, /app-global-nav-link-active/);
+test('앱 셸은 /converters 경로 도구를 사이드바 링크로 렌더링한다', () => {
+  assert.match(appShellSource, /converterGroups\.map/);
+  assert.match(appShellSource, /converters\s*\n\s*\.filter\(\(converter\) => converter\.group === group\)/);
+  assert.match(appShellSource, /href=\{converter\.path\}/);
+  assert.match(appShellSource, /pathname === converter\.path/);
+  assert.match(appShellSource, /onClick=\{closeDrawer\}/);
 });
 
-test('converter tool navigation renders ordered registry links with active tool state', () => {
-  assert.match(navigationSource, /getToolNavigationItems/);
-  assert.match(navigationSource, /toolNavigationItems\.map/);
-  assert.match(navigationSource, /href=\{tool\.href\}/);
-  assert.match(navigationSource, /aria-current=\{isActive \? 'page' : undefined\}/);
-  assert.match(navigationSource, /getToolByPath\(pathname\)/);
+test('도구 작업 영역은 레지스트리 링크로 다른 실행 화면에 이동한다', () => {
+  assert.match(workspaceSource, /getToolNavigationItems/);
+  assert.doesNotMatch(workspaceSource, /toolNavigationItems\.slice\(/);
+  assert.match(workspaceSource, /toolNavigationItems\.map/);
+  assert.match(workspaceSource, /href=\{tool\.href\}/);
+  assert.match(workspaceSource, /aria-current=\{isActive \? 'page' : undefined\}/);
+  assert.match(workspaceSource, /getToolByPath\(pathname\)/);
+
+  const navigationItems = getToolNavigationItems();
+  for (const item of navigationItems) {
+    assert.match(item.href, /^\/converters\/[a-z0-9-]+$/);
+  }
 });

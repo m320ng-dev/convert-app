@@ -1,157 +1,72 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
-import { convertCodeToCurl } from './code-to-curl.ts';
-import { parseCurlCommand, CurlParseError } from './curl-parser.ts';
-import { generateCodeFromCurl } from './curl-to-code.ts';
+import { convertBase64Text } from './base64-codec.ts';
+import { formatJsonText } from './json-formatter.ts';
 import { validateJwt } from './jwt-decoder.ts';
 import { buildJwtPayloadFromClaims, generateJwt } from './jwt-generator.ts';
 import { generateRandomTokens } from './random-token.ts';
-import { regexFlagOptions, safeTestRegex } from './regex-tester.ts';
+import { testRegexPattern } from './regex-tester.ts';
+import { convertSvgToReactComponent } from './svg-to-react.ts';
+import { convertTimestampText } from './timestamp-converter.ts';
+import { convertUrlText } from './url-codec.ts';
+import { generateUuidUlidResults } from './uuid-ulid.ts';
 
-test('covers curl parser validation errors for empty input, non-curl commands, URL conflicts, and methods', () => {
-  assertCurlError('', {
-    code: 'EMPTY_COMMAND',
-    message: /curl 명령어를 입력해주세요/,
-  });
+function readPage(route) {
+  return readFileSync(resolve(import.meta.dirname, `../converters/${route}/page.tsx`), 'utf8');
+}
 
-  assertCurlError('wget https://api.example.com', {
-    code: 'NOT_CURL_COMMAND',
-    token: 'wget',
-    message: /명령어는 curl로 시작해야 합니다/,
-  });
-
-  assertCurlError('curl -X', {
-    code: 'MISSING_FLAG_VALUE',
-    flag: '-X',
-    message: /-X 옵션에는 값이 필요합니다/,
-  });
-
-  assertCurlError('curl -X P0ST https://api.example.com', {
-    code: 'INVALID_METHOD',
-    token: 'P0ST',
-    message: /HTTP 메서드는 영문자로 입력해주세요/,
-  });
-
-  assertCurlError('curl https://api.example.com https://api.example.com/next', {
-    code: 'MULTIPLE_URLS',
-    token: 'https://api.example.com/next',
-    message: /요청 URL은 하나만 입력할 수 있습니다/,
-  });
-
-  assertCurlError('curl -H "Bad Header: value" https://api.example.com', {
-    code: 'INVALID_HEADER',
-    token: 'Bad Header: value',
-    message: /헤더 이름에 사용할 수 없는 문자가 있습니다/,
-  });
-});
-
-test('covers curl-to-code validation errors for option shape, indentation, and timeout limits', () => {
+test('covers malformed text/data utility inputs with focused Korean errors', () => {
   assert.throws(
-    () => generateCodeFromCurl('curl https://api.example.com', null),
-    /코드 생성 옵션을 확인해주세요/,
+    () => convertUrlText('%E0%A4%A', 'decode-component'),
+    /퍼센트 인코딩 형식을 확인해주세요/,
   );
 
   assert.throws(
-    () =>
-      generateCodeFromCurl('curl https://api.example.com', {
-        language: 'javascript-fetch',
-        indentSize: 1,
-      }),
-    /들여쓰기는 2~8칸 사이의 숫자로 입력해주세요/,
+    () => formatJsonText('{ "ok": true, }', 'format'),
+    /유효하지 않은 JSON 형식입니다/,
   );
 
   assert.throws(
-    () =>
-      generateCodeFromCurl('curl https://api.example.com', {
-        language: 'javascript-fetch',
-        timeoutSeconds: 601,
-      }),
-    /타임아웃은 600초 이하로 입력해주세요/,
+    () => convertBase64Text('not base64!!!', 'decode'),
+    /올바른 Base64 문자열인지 확인해주세요/,
+  );
+
+  assert.throws(
+    () => convertTimestampText('twenty-six', 'timestamp-to-date'),
+    /유효한 Unix timestamp 숫자를 입력해주세요/,
+  );
+
+  assert.throws(
+    () => convertTimestampText('not-a-date', 'date-to-timestamp'),
+    /유효한 날짜 문자열을 입력해주세요/,
+  );
+
+  assert.throws(
+    () => convertSvgToReactComponent('<div>not svg</div>', 'Icon'),
+    /유효한 SVG 마크업을 입력해주세요/,
   );
 });
 
-test('covers code-to-curl validation errors for options, Python snippets, and raw HTTP input', () => {
+test('covers identifier and regex validation errors with actionable feedback', () => {
   assert.throws(
-    () => convertCodeToCurl('fetch("https://api.example.com")', null),
-    /변환 옵션을 확인해주세요/,
+    () => generateUuidUlidResults({ kind: 'guid', quantity: 1 }),
+    /생성할 식별자 종류를 확인해주세요/,
   );
 
   assert.throws(
-    () => convertCodeToCurl('httpx.get("https://api.example.com")', { language: 'python-requests' }),
-    /Python requests 호출을 찾을 수 없습니다/,
+    () => generateUuidUlidResults({ kind: 'uuid', quantity: 101 }),
+    /생성 개수는 1~100개 사이로 입력해주세요/,
   );
 
-  assert.throws(
-    () => convertCodeToCurl('requests.get(url)', { language: 'python-requests' }),
-    /requests 첫 번째 인자는 URL 문자열이어야 합니다/,
-  );
+  const missingPattern = testRegexPattern('   ', 'sample', 'g');
+  assert.equal(missingPattern.error, 'Regex 패턴을 입력해주세요.');
 
-  assert.throws(
-    () => convertCodeToCurl('GET /users HTTP/1.1', { language: 'http' }),
-    /Raw HTTP 요청에는 Host 헤더가 필요합니다/,
-  );
-
-  assert.throws(
-    () =>
-      convertCodeToCurl(
-        'GET /users HTTP/1.1\nHost: api.example.com\nBroken-Header',
-        { language: 'http' },
-      ),
-    /HTTP 헤더는 "이름: 값" 형식이어야 합니다/,
-  );
-});
-
-test('reports malformed supported code-to-curl inputs with focused Korean errors', () => {
-  assert.throws(
-    () =>
-      convertCodeToCurl(
-        'fetch("https://api.example.com", method: "POST", body: "name=test")',
-        { language: 'javascript-fetch' },
-      ),
-    /fetch options는 객체 리터럴/,
-  );
-
-  assert.throws(
-    () =>
-      convertCodeToCurl(
-        'fetch("https://api.example.com", { headers: [["Accept", "application/json"]] })',
-        { language: 'javascript-fetch' },
-      ),
-    /배열 형태의 JavaScript headers는 아직 지원하지 않습니다/,
-  );
-
-  assert.throws(
-    () =>
-      convertCodeToCurl(
-        'requests.post("https://api.example.com", headers={"Accept": token})',
-        { language: 'python-requests' },
-      ),
-    /Python headers 딕셔너리 값은 문자열이어야 합니다/,
-  );
-
-  assert.throws(
-    () =>
-      convertCodeToCurl('GET users HTTP/1.1\nHost: api.example.com', { language: 'http' }),
-    /Raw HTTP 요청 경로는 \/ 또는 http/,
-  );
-});
-
-test('reports known unsupported request patterns explicitly', () => {
-  assert.throws(
-    () => convertCodeToCurl('axios.get("https://api.example.com/users")', { language: 'auto' }),
-    /axios 요청 패턴은 아직 지원하지 않습니다/,
-  );
-
-  assert.throws(
-    () => convertCodeToCurl('fetch(apiUrl)', { language: 'javascript-fetch' }),
-    /변수 URL 패턴은 아직 지원하지 않습니다/,
-  );
-
-  assert.throws(
-    () => convertCodeToCurl('requests.Session().get("https://api.example.com")', { language: 'auto' }),
-    /requests\.Session\(\) 패턴은 아직 지원하지 않습니다/,
-  );
+  const invalidPattern = testRegexPattern('[a-', 'sample', 'g');
+  assert.equal(invalidPattern.result, null);
+  assert.match(invalidPattern.error ?? '', /유효하지 않은 Regex 패턴입니다:/);
 });
 
 test('covers JWT validation errors for verification setup and claim types', async () => {
@@ -265,44 +180,155 @@ test('covers random token validation errors for direct quantity and affix limits
   );
 });
 
-test('covers non-throwing regex validation results for missing patterns and bad flags', () => {
-  const missingPattern = safeTestRegex({
-    pattern: '   ',
-    text: 'sample',
-    flags: regexFlagOptions,
-  });
-  assert.equal(missingPattern.ok, false);
-  assert.equal(missingPattern.error, '정규식 패턴을 입력해주세요.');
+test('covers valid but unprocessable inputs with precise recovery reasons', () => {
+  assert.throws(
+    () => convertBase64Text('/w==', 'decode'),
+    /Base64는 유효하지만 UTF-8 텍스트로 디코딩할 수 없습니다/,
+  );
 
-  const invalidFlags = safeTestRegex({
-    pattern: 'sample',
-    text: 'sample',
-    flags: null,
-  });
-  assert.equal(invalidFlags.ok, false);
-  assert.equal(invalidFlags.error, '정규식 플래그 설정을 확인해주세요.');
+  assert.throws(
+    () => convertTimestampText('999999999999999999999', 'timestamp-to-date'),
+    /유효한 Unix timestamp 범위를 입력해주세요/,
+  );
+
+  assert.throws(
+    () =>
+      generateRandomTokens({
+        length: 16,
+        quantity: 1,
+        characterSets: {
+          lowercase: true,
+          uppercase: false,
+          numbers: false,
+          symbols: false,
+        },
+        excludeCharacters: 'abcdefghijklmnopqrstuvwxyz',
+        excludeAmbiguous: false,
+      }),
+    /제외 문자 설정 때문에 사용할 수 있는 문자가 없습니다/,
+  );
+
 });
 
-function assertCurlError(command, expectation) {
-  assert.throws(
-    () => parseCurlCommand(command),
-    (error) => {
-      assert.ok(error instanceof CurlParseError);
-      assert.equal(error.code, expectation.code);
-
-      if ('flag' in expectation) {
-        assert.equal(error.flag, expectation.flag);
-      }
-
-      if ('token' in expectation) {
-        assert.equal(error.token, expectation.token);
-      }
-
-      assert.match(error.message, expectation.message);
-      return true;
+test('우선순위 로컬 도구는 입력 검증 실패 메시지를 도구별 alert 또는 결과 패널에 표시한다', () => {
+  const expectations = [
+    {
+      route: 'random-token-generator',
+      alertPattern: /<ToolValidationMessage message=\{error\}/,
+      resultErrorPattern: /errorMessage=\{error\}/,
+      defaultErrorPattern: /defaultErrorMessage="토큰 생성 중 오류가 발생했습니다\."/,
+      messagePattern: /토큰 생성 중 오류가 발생했습니다\./,
     },
-  );
-}
+    {
+      route: 'uuid-ulid-generator',
+      alertPattern: /<ToolValidationMessage message=\{error\}/,
+      resultErrorPattern: /errorMessage=\{error\}/,
+      defaultErrorPattern: /defaultErrorMessage="식별자를 생성하는 중 오류가 발생했습니다\."/,
+      messagePattern: /식별자를 생성하는 중 오류가 발생했습니다\./,
+    },
+    {
+      route: 'url-encoder-decoder',
+      alertPattern: /<ToolValidationMessage message=\{error\}/,
+      resultErrorPattern: /errorMessage=\{error\}/,
+      defaultErrorPattern: /defaultErrorMessage="URL 변환 중 오류가 발생했습니다\."/,
+      messagePattern: /URL 또는 URL 컴포넌트를 입력해주세요\./,
+    },
+    {
+      route: 'jwt-decoder',
+      alertPattern: /<ToolValidationMessage message=\{decodedResult\.error\}/,
+      resultErrorPattern: /errorMessage=\{decodedResult\.error\}/,
+      defaultErrorPattern: /defaultErrorMessage="JWT를 디코딩하는 중 오류가 발생했습니다\."/,
+      messagePattern: /JWT를 입력해주세요\./,
+    },
+    {
+      route: 'regex-tester',
+      alertPattern: /<ToolValidationMessage id="regex-validation-error" message=\{error\}/,
+      resultErrorPattern: /errorMessage=\{error\}/,
+      defaultErrorPattern: /defaultErrorMessage="Regex 테스트 중 오류가 발생했습니다\."/,
+      messagePattern: /Regex 패턴을 입력하면 결과가 표시됩니다\./,
+    },
+    {
+      route: 'string-case-converter',
+      alertPattern: /<ToolValidationMessage message=\{error\}/,
+      resultErrorPattern: /errorMessage=\{error\}/,
+      defaultErrorPattern: /defaultErrorMessage="문자열 케이스 변환 중 오류가 발생했습니다\."/,
+      messagePattern: /입력 문자열을 입력해주세요\./,
+    },
+    {
+      route: 'qr-code-generator',
+      alertPattern: /<ToolValidationMessage message=\{error\}/,
+      resultErrorPattern: /errorMessage=\{error\}/,
+      defaultErrorPattern: /defaultErrorMessage="QR 코드 생성 중 오류가 발생했습니다\."/,
+      messagePattern: /QR 코드로 만들 텍스트나 URL을 입력해주세요\./,
+    },
+  ];
+
+  for (const expectation of expectations) {
+    const source = readPage(expectation.route);
+
+    assert.match(
+      source,
+      expectation.alertPattern,
+      `${expectation.route}는 입력 검증 실패 메시지를 즉시 인지 가능한 alert로 표시해야 합니다.`,
+    );
+    assert.match(
+      source,
+      expectation.resultErrorPattern,
+      `${expectation.route}는 같은 실패 메시지를 결과 패널 오류 상태로 전달해야 합니다.`,
+    );
+    assert.match(
+      source,
+      expectation.defaultErrorPattern,
+      `${expectation.route}는 예외 상황에 사용할 도구별 기본 오류 문구를 결과 패널에 전달해야 합니다.`,
+    );
+    assert.match(
+      source,
+      expectation.messagePattern,
+      `${expectation.route}는 도구별 복구 가능한 입력 오류 문구를 제공해야 합니다.`,
+    );
+  }
+});
+
+test('직접 처리 흐름의 텍스트 도구도 과도한 입력을 공통 기준으로 차단한다', () => {
+  const expectations = [
+    {
+      route: 'regex-tester',
+      validationPattern: /validateToolTextInput\(testText, '테스트 텍스트를 입력해주세요\.'[\s\S]*maxLength: MAX_TEXT_TOOL_INPUT_LENGTH/,
+    },
+    {
+      route: 'string-case-converter',
+      validationPattern: /validateToolTextInput\(input, '입력 문자열을 입력해주세요\.'[\s\S]*excessiveInputMessage: DEFAULT_EXCESSIVE_INPUT_ERROR_MESSAGE/,
+    },
+    {
+      route: 'jwt-decoder',
+      validationPattern: /validateToolTextInput\(token, 'JWT를 입력해주세요\.'[\s\S]*excessiveInputMessage: DEFAULT_EXCESSIVE_INPUT_ERROR_MESSAGE/,
+    },
+    {
+      route: 'qr-code-generator',
+      validationPattern: /validateToolTextInput\(input, 'QR 코드로 만들 텍스트나 URL을 입력해주세요\.'[\s\S]*maxLength: QR_TEXT_INPUT_MAX_LENGTH/,
+    },
+  ];
+
+  for (const expectation of expectations) {
+    const source = readPage(expectation.route);
+
+    assert.match(
+      source,
+      /validateToolTextInput/,
+      `${expectation.route}는 공통 텍스트 입력 검증 헬퍼를 사용해야 합니다.`,
+    );
+    assert.match(
+      source,
+      expectation.validationPattern,
+      `${expectation.route}는 빈 입력과 과도한 입력을 공통 실패 상태로 표시해야 합니다.`,
+    );
+    assert.match(
+      source,
+      /DEFAULT_EXCESSIVE_INPUT_ERROR_MESSAGE/,
+      `${expectation.route}는 공통 과도 입력 표시 메시지를 사용해야 합니다.`,
+    );
+  }
+});
 
 function encodeBase64Url(value) {
   return Buffer.from(value, 'utf8').toString('base64url');

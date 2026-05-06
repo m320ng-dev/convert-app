@@ -1,173 +1,127 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
-type ConversionMode = 'encode' | 'decode';
+import { ResultsPanel } from '@/app/components/results-panel';
+import { TextToolInput } from '@/app/components/text-tool-input';
+import { ToolValidationMessage } from '@/app/components/tool-validation-message';
+import { convertBase64Text, type Base64Mode } from '@/app/lib/base64-codec';
+import {
+  createInputValidationFailure,
+  executeToolConversion,
+} from '@/app/lib/tool-error-message';
 
-export default function Base64Converter() {
-    const [input, setInput] = useState('');
-    const [output, setOutput] = useState('');
-    const [mode, setMode] = useState<ConversionMode>('encode');
-    const [error, setError] = useState<string | null>(null);
+const modeOptions: Array<{
+  id: Base64Mode;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: 'encode',
+    label: '인코딩',
+    description: 'UTF-8 텍스트를 Base64 문자열로 변환합니다.',
+  },
+  {
+    id: 'decode',
+    label: '디코딩',
+    description: 'Base64 문자열을 UTF-8 텍스트로 변환합니다.',
+  },
+];
 
-    const handleConversion = (value: string) => {
-        try {
-            setError(null);
-            if (!value.trim()) {
-                setOutput('');
-                return;
-            }
+const emptyInputFailure = createInputValidationFailure('변환할 텍스트 또는 Base64 문자열을 입력해주세요.');
 
-            if (mode === 'encode') {
-                // UTF-8 텍스트를 Base64로 인코딩
-                const encoded = btoa(unescape(encodeURIComponent(value)));
-                setOutput(encoded);
-            } else {
-                // Base64를 UTF-8 텍스트로 디코딩
-                const decoded = decodeURIComponent(escape(atob(value)));
-                setOutput(decoded);
-            }
-        } catch (err) {
-            console.error('변환 중 오류:', err);
-            setError(mode === 'encode'
-                ? '텍스트를 Base64로 인코딩하는 중 오류가 발생했습니다.'
-                : 'Base64를 디코딩하는 중 오류가 발생했습니다. 올바른 Base64 형식인지 확인해주세요.');
-            setOutput('');
-        }
-    };
+export default function Base64ConverterPage() {
+  const [input, setInput] = useState('convertapp 로컬 도구');
+  const [mode, setMode] = useState<Base64Mode>('encode');
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        const value = e.target.value;
-        setInput(value);
-        // 입력값이 변경될 때마다 자동으로 변환
-        if (value.trim()) {
-            handleConversion(value);
-        } else {
-            setOutput('');
-            setError(null);
-        }
-    };
+  const { output, error, emptyMessage } = useMemo(() => {
+    if (!input.trim()) {
+      return {
+        output: '',
+        error: emptyInputFailure.message,
+        emptyMessage: emptyInputFailure.emptyMessage,
+      };
+    }
 
-    const handleModeChange = (newMode: ConversionMode) => {
-        setMode(newMode);
-        // 모드가 변경될 때 입력값이 있다면 자동으로 변환
-        if (input.trim()) {
-            const temp = input;
-            setInput(output);
-            setOutput(temp);
-            setError(null);
-        }
-    };
+    return executeToolConversion({
+      input,
+      transform: (input) => convertBase64Text(input, mode),
+      emptyInputMessage: emptyInputFailure.message,
+      emptyResultMessage: '텍스트를 입력하면 결과가 표시됩니다.',
+      defaultErrorMessage: 'Base64 변환 중 오류가 발생했습니다.',
+    });
+  }, [input, mode]);
 
-    const copyToClipboard = async (text: string) => {
-        try {
-            await navigator.clipboard.writeText(text);
-            alert('클립보드에 복사되었습니다!');
-        } catch (error) {
-            console.error('복사 실패:', error);
-            alert('클립보드에 복사하지 못했습니다.');
-        }
-    };
+  const activeMode = modeOptions.find((option) => option.id === mode);
+  const copyValue = output;
 
-    return (
-        <div className="min-h-screen p-8">
-            <div className="max-w-4xl mx-auto">
-                <h1 className="text-3xl font-bold mb-6">Base64 인코더/디코더</h1>
-
-                <div className="mb-6">
-                    <div className="flex space-x-4 mb-4">
-                        <button
-                            onClick={() => handleModeChange('encode')}
-                            className={`px-4 py-2 rounded ${mode === 'encode'
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-gray-100 hover:bg-gray-200'
-                                }`}
-                        >
-                            텍스트 → Base64
-                        </button>
-                        <button
-                            onClick={() => handleModeChange('decode')}
-                            className={`px-4 py-2 rounded ${mode === 'decode'
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-gray-100 hover:bg-gray-200'
-                                }`}
-                        >
-                            Base64 → 텍스트
-                        </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                                <label className="text-sm font-medium text-gray-700">
-                                    {mode === 'encode' ? '텍스트 입력' : 'Base64 입력'}
-                                </label>
-                                <button
-                                    onClick={() => copyToClipboard(input)}
-                                    className="text-blue-500 hover:text-blue-600 text-sm"
-                                >
-                                    복사
-                                </button>
-                            </div>
-                            <textarea
-                                value={input}
-                                onChange={handleInputChange}
-                                placeholder={mode === 'encode'
-                                    ? '변환할 텍스트를 입력하세요'
-                                    : 'Base64 형식의 문자열을 입력하세요'}
-                                className="w-full h-64 p-3 border rounded-lg font-mono text-sm resize-none"
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-center">
-                                <label className="text-sm font-medium text-gray-700">
-                                    {mode === 'encode' ? 'Base64 결과' : '텍스트 결과'}
-                                </label>
-                                <button
-                                    onClick={() => copyToClipboard(output)}
-                                    className="text-blue-500 hover:text-blue-600 text-sm"
-                                >
-                                    복사
-                                </button>
-                            </div>
-                            <textarea
-                                value={output}
-                                readOnly
-                                className="w-full h-64 p-3 border rounded-lg font-mono text-sm bg-gray-50 resize-none"
-                                placeholder="변환 결과가 여기에 표시됩니다"
-                            />
-                        </div>
-                    </div>
-
-                    {error && (
-                        <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
-                            {error}
-                        </div>
-                    )}
-                </div>
-
-                <div className="mt-8">
-                    <h2 className="text-xl font-semibold mb-4">도움말</h2>
-                    <ul className="list-disc pl-5 space-y-2 text-gray-600">
-                        <li>
-                            텍스트를 Base64로 인코딩하거나, Base64를 텍스트로 디코딩할 수 있습니다.
-                        </li>
-                        <li>
-                            입력값을 변경하면 자동으로 변환이 이루어집니다.
-                        </li>
-                        <li>
-                            모드를 변경하면 이전 결과값이 새로운 입력값으로 자동 설정됩니다.
-                        </li>
-                        <li>
-                            유니코드 문자(한글, 이모지 등)를 포함한 모든 텍스트를 지원합니다.
-                        </li>
-                        <li>
-                            각 입력창과 결과창의 내용을 클립보드에 복사할 수 있습니다.
-                        </li>
-                    </ul>
-                </div>
-            </div>
+  return (
+    <div className="app-stack">
+      <section className="app-panel app-panel-flat app-panel-body">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="app-kicker text-slate-500">Text Utility</p>
+            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
+              Base64 인코더/디코더
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              외부 API 없이 브라우저에서만 처리됩니다.
+            </p>
+          </div>
+          <span className="app-chip rounded-lg">로컬 처리</span>
         </div>
-    );
-} 
+
+        <div className="mt-5 grid gap-4">
+          <div>
+            <label htmlFor="base64-converter-mode" className="text-sm font-semibold text-slate-800">
+              변환 모드
+            </label>
+            <select
+              id="base64-converter-mode"
+              value={mode}
+              onChange={(event) => setMode(event.target.value as Base64Mode)}
+              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              {modeOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs leading-5 text-slate-500">{activeMode?.description}</p>
+          </div>
+
+          <TextToolInput
+            id="base64-converter-input"
+            label={mode === 'encode' ? '텍스트 입력' : 'Base64 입력'}
+            value={input}
+            onValueChange={setInput}
+            exampleValue={mode === 'encode' ? 'convertapp 로컬 도구' : 'Y29udmVydGFwcCDroZzsu7wg64+E6rWs'}
+            placeholder={mode === 'encode' ? '변환할 텍스트를 입력하세요.' : 'Base64 문자열을 입력하세요.'}
+            minHeightClassName="min-h-64"
+          />
+
+          <ToolValidationMessage message={error} />
+        </div>
+      </section>
+
+      <ResultsPanel
+        title="변환 결과"
+        description="선택한 모드에 맞춰 입력값을 즉시 변환합니다."
+        copyValue={copyValue}
+        copyLabel="결과 복사"
+        copyAriaLabel="Base64 변환 결과 복사"
+        copyCopiedMessage="Base64 변환 결과를 클립보드에 복사했습니다."
+        copyEmptyMessage="복사할 Base64 변환 결과가 없습니다."
+        emptyMessage={emptyMessage}
+        errorMessage={error}
+        defaultErrorMessage="Base64 변환 중 오류가 발생했습니다."
+        isEmpty={!output}
+      >
+        <pre className="result-output max-h-[560px] overflow-auto rounded-lg border border-slate-200 bg-slate-950 p-4 text-sm leading-6 text-slate-100">
+          <code className="break-words font-mono">{output}</code>
+        </pre>
+      </ResultsPanel>
+    </div>
+  );
+}

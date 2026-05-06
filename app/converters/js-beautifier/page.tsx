@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 
+import { CopyResultAction } from '@/app/components/copy-result-action';
+
 export default function JsBeautifier() {
     const [input, setInput] = useState('');
     const [output, setOutput] = useState('');
@@ -61,16 +63,6 @@ export default function JsBeautifier() {
         if (directInput.trim()) {
             setInput(directInput);
             await beautifyCode(directInput);
-        }
-    };
-
-    const copyToClipboard = async () => {
-        try {
-            await navigator.clipboard.writeText(output);
-            alert('클립보드에 복사되었습니다!');
-        } catch (error) {
-            console.error('복사 실패:', error);
-            alert('클립보드에 복사하지 못했습니다');
         }
     };
 
@@ -137,12 +129,14 @@ export default function JsBeautifier() {
                         <div className="mt-6">
                             <div className="flex justify-between items-center mb-2">
                                 <h2 className="text-xl font-semibold">정리된 코드:</h2>
-                                <button
-                                    onClick={copyToClipboard}
-                                    className="text-blue-500 hover:text-blue-600"
-                                >
-                                    클립보드에 복사
-                                </button>
+                                <CopyResultAction
+                                    value={output}
+                                    label="결과 복사"
+                                    ariaLabel="JavaScript 정리 결과 복사"
+                                    copiedMessage="정리된 JavaScript 코드를 클립보드에 복사했습니다."
+                                    emptyMessage="복사할 JavaScript 정리 결과가 없습니다."
+                                    disabled={!output}
+                                />
                             </div>
                             <pre className="bg-gray-100 p-4 rounded-lg whitespace-pre-wrap font-mono">
                                 {output}

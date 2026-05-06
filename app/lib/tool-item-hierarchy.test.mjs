@@ -42,24 +42,22 @@ test('main tool listing renders the shared usage-ordered tool source directly', 
 
 test('first screen combined tool rows expose the expected shared usage order', () => {
   const expectedUsageOrder = [
+    'random-token-generator',
+    'uuid-ulid-generator',
+    'url-encoder-decoder',
+    'jwt-decoder',
+    'regex-tester',
+    'string-case-converter',
+    'qr-code-generator',
     'json-formatter',
     'base64-converter',
-    'jwt-decoder',
-    'js-beautifier',
-    'curl-to-code',
-    'code-to-curl',
     'timestamp-converter',
-    'regex-tester',
-    'env-validator',
-    'random-token-generator',
-    'hash-generator',
     'sql-formatter',
-    'html-to-markdown',
-    'markdown-viewer',
     'svg-to-react',
-    'image-to-base64',
-    'base64-to-image',
-    'ip-geolocation',
+    'html-entity-escaper',
+    'csv-json-converter',
+    'yaml-json-converter',
+    'hash-generator',
   ];
 
   assert.deepEqual(
@@ -68,4 +66,19 @@ test('first screen combined tool rows expose the expected shared usage order', (
   );
   assert.match(pageSource, /data-tool-id=\{converter\.id\}/);
   assert.match(pageSource, /data-usage-rank=\{converter\.usageRank\}/);
+});
+
+test('new browser-local tool cards expose active status without disabling the existing link interaction', () => {
+  assert.ok(tools.length >= 13);
+
+  for (const tool of tools) {
+    assert.equal(tool.status, 'active', `${tool.id} 카드는 활성 상태여야 한다`);
+    assert.equal(tool.statusLabel, '사용 가능', `${tool.id} 카드는 활성 상태 라벨을 표시해야 한다`);
+    assert.equal(tool.interactionState, 'enabled', `${tool.id} 카드는 기존 링크 상호작용을 유지해야 한다`);
+  }
+
+  assert.match(pageSource, /data-tool-status=\{converter\.status\}/);
+  assert.match(pageSource, /data-interaction-state=\{converter\.interactionState\}/);
+  assert.match(pageSource, /\{converter\.statusLabel\}/);
+  assert.doesNotMatch(pageSource, /aria-disabled=\{true\}/);
 });

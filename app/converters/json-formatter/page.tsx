@@ -1,159 +1,132 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 
-export default function JsonFormatter() {
-    const [input, setInput] = useState('');
-    const [output, setOutput] = useState('');
-    const [error, setError] = useState<string | null>(null);
-    const [showInput, setShowInput] = useState(false);
-    const [directInput, setDirectInput] = useState('');
+import { ResultsPanel } from '@/app/components/results-panel';
+import { TextToolInput } from '@/app/components/text-tool-input';
+import { ToolValidationMessage } from '@/app/components/tool-validation-message';
+import { formatJsonText, type JsonFormatterMode } from '@/app/lib/json-formatter';
+import {
+  createInputValidationFailure,
+  executeToolConversion,
+} from '@/app/lib/tool-error-message';
 
-    const handlePaste = async (e: ClipboardEvent) => {
-        // textarea나 input에서의 붙여넣기는 무시
-        if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) {
-            return;
-        }
+const modeOptions: Array<{
+  id: JsonFormatterMode;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: 'format',
+    label: '포맷팅',
+    description: '2칸 들여쓰기로 읽기 쉽게 정렬합니다.',
+  },
+  {
+    id: 'minify',
+    label: '압축',
+    description: '공백과 줄바꿈을 제거한 한 줄 JSON으로 변환합니다.',
+  },
+  {
+    id: 'validate',
+    label: '검증',
+    description: 'JSON 파싱 가능 여부를 확인합니다.',
+  },
+];
 
-        try {
-            const text = e.clipboardData?.getData('text');
-            if (text) {
-                setInput(text);
-                formatJson(text);
-            }
-        } catch (error) {
-            console.error('붙여넣기 실패:', error);
-            alert('클립보드에서 가져오지 못했습니다');
-        }
-    };
+const emptyInputFailure = createInputValidationFailure('JSON을 입력해주세요.');
 
-    const formatJson = (jsonString: string) => {
-        try {
-            // JSON 파싱하여 유효성 검사
-            const parsed = JSON.parse(jsonString);
-            // 2칸 들여쓰기로 포맷팅
-            const formatted = JSON.stringify(parsed, null, 2);
-            setOutput(formatted);
-            setError(null);
-        } catch (err) {
-            console.error('formatJson 실패:', err);
-            setError('유효하지 않은 JSON 형식입니다. 다시 확인해주세요.');
-            setOutput('');
-        }
-    };
+export default function JsonFormatterPage() {
+  const [input, setInput] = useState('{"name":"convertapp","localOnly":true}');
+  const [mode, setMode] = useState<JsonFormatterMode>('format');
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (directInput.trim()) {
-            setInput(directInput);
-            formatJson(directInput);
-        }
-    };
+  const { output, error, emptyMessage } = useMemo(() => {
+    if (!input.trim()) {
+      return {
+        output: '',
+        error: emptyInputFailure.message,
+        emptyMessage: emptyInputFailure.emptyMessage,
+      };
+    }
 
-    const copyToClipboard = async () => {
-        try {
-            await navigator.clipboard.writeText(output);
-            alert('클립보드에 복사되었습니다!');
-        } catch (error) {
-            console.error('복사 실패:', error);
-            alert('클립보드에 복사하지 못했습니다');
-        }
-    };
+    return executeToolConversion({
+      input,
+      transform: (input) => formatJsonText(input, mode),
+      emptyInputMessage: emptyInputFailure.message,
+      emptyResultMessage: 'JSON을 입력하면 결과가 표시됩니다.',
+      defaultErrorMessage: 'JSON 변환 중 오류가 발생했습니다.',
+    });
+  }, [input, mode]);
 
-    const minifyJson = () => {
-        try {
-            const parsed = JSON.parse(output || input);
-            const minified = JSON.stringify(parsed);
-            setOutput(minified);
-        } catch (err) {
-            console.error('minifyJson 실패:', err);
-            setError('JSON을 압축하는 중 오류가 발생했습니다.');
-        }
-    };
+  const activeMode = modeOptions.find((option) => option.id === mode);
+  const copyValue = output;
 
-    useEffect(() => {
-        document.addEventListener('paste', handlePaste);
-        return () => {
-            document.removeEventListener('paste', handlePaste);
-        };
-    }, []);
-
-    return (
-        <div className="min-h-screen p-8">
-            <div className="max-w-4xl mx-auto">
-                <h1 className="text-3xl font-bold mb-6">JSON 포맷터</h1>
-                <div className="mb-6">
-                    <p className="mb-2 text-gray-600">
-                        JSON 데이터를 복사한 후 이 페이지에서 <kbd className="px-2 py-1 bg-gray-100 rounded">Ctrl</kbd> + <kbd className="px-2 py-1 bg-gray-100 rounded">V</kbd> 를 눌러주세요.
-                    </p>
-                    <button
-                        onClick={() => setShowInput(!showInput)}
-                        className="text-blue-500 hover:text-blue-600 text-sm"
-                    >
-                        {showInput ? '직접 입력 숨기기' : '또는 직접 입력하기'}
-                    </button>
-                </div>
-
-                {showInput && (
-                    <form onSubmit={handleSubmit} className="mb-6">
-                        <div className="space-y-2">
-                            <textarea
-                                value={directInput}
-                                onChange={(e) => setDirectInput(e.target.value)}
-                                className="w-full h-48 p-4 border rounded-lg font-mono text-sm"
-                                placeholder="JSON 데이터를 여기에 입력하세요..."
-                            />
-                            <button
-                                type="submit"
-                                className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 text-sm"
-                                disabled={!directInput.trim()}
-                            >
-                                포맷팅하기
-                            </button>
-                        </div>
-                    </form>
-                )}
-
-                {error && (
-                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
-                        {error}
-                    </div>
-                )}
-
-                {input && !error && (
-                    <div className="space-y-4">
-                        <div>
-                            <h2 className="text-xl font-semibold mb-2">입력된 데이터:</h2>
-                            <pre className="bg-gray-100 p-4 rounded-lg whitespace-pre-wrap font-mono text-sm overflow-auto max-h-48">
-                                {input}
-                            </pre>
-                        </div>
-
-                        <div className="mt-6">
-                            <div className="flex justify-between items-center mb-2">
-                                <h2 className="text-xl font-semibold">포맷팅된 JSON:</h2>
-                                <div className="space-x-4">
-                                    <button
-                                        onClick={minifyJson}
-                                        className="text-blue-500 hover:text-blue-600 text-sm"
-                                    >
-                                        압축하기
-                                    </button>
-                                    <button
-                                        onClick={copyToClipboard}
-                                        className="text-blue-500 hover:text-blue-600 text-sm"
-                                    >
-                                        클립보드에 복사
-                                    </button>
-                                </div>
-                            </div>
-                            <pre className="bg-gray-100 p-4 rounded-lg whitespace-pre-wrap font-mono text-sm overflow-auto max-h-96">
-                                {output}
-                            </pre>
-                        </div>
-                    </div>
-                )}
-            </div>
+  return (
+    <div className="app-stack">
+      <section className="app-panel app-panel-flat app-panel-body">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="app-kicker text-slate-500">JSON Utility</p>
+            <h2 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
+              JSON 포맷팅/압축/검증
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              외부 API 없이 브라우저에서만 처리됩니다.
+            </p>
+          </div>
+          <span className="app-chip rounded-lg">로컬 처리</span>
         </div>
-    );
-} 
+
+        <div className="mt-5 grid gap-4">
+          <div>
+            <label htmlFor="json-formatter-mode" className="text-sm font-semibold text-slate-800">
+              처리 모드
+            </label>
+            <select
+              id="json-formatter-mode"
+              value={mode}
+              onChange={(event) => setMode(event.target.value as JsonFormatterMode)}
+              className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              {modeOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs leading-5 text-slate-500">{activeMode?.description}</p>
+          </div>
+
+          <TextToolInput
+            id="json-formatter-input"
+            label="JSON 입력"
+            value={input}
+            onValueChange={setInput}
+            exampleValue='{"name":"convertapp","localOnly":true,"tags":["api","utility"]}'
+            placeholder='{"id": 1, "name": "convertapp"}'
+            minHeightClassName="min-h-64"
+          />
+
+          <ToolValidationMessage message={error} />
+        </div>
+      </section>
+
+      <ResultsPanel
+        title="변환 결과"
+        description="입력한 JSON을 선택한 모드로 즉시 변환합니다."
+        copyValue={copyValue}
+        copyLabel="결과 복사"
+        copyAriaLabel="JSON 변환 결과 복사"
+        copyCopiedMessage="JSON 결과를 클립보드에 복사했습니다."
+        copyEmptyMessage="복사할 JSON 결과가 없습니다."
+        emptyMessage={emptyMessage}
+        errorMessage={error}
+        defaultErrorMessage="JSON 변환 중 오류가 발생했습니다."
+        isEmpty={!output}
+      >
+        <pre className="result-output max-h-[560px] overflow-auto rounded-lg border border-slate-200 bg-slate-950 p-4 text-sm leading-6 text-slate-100">
+          <code className="break-words font-mono">{output}</code>
+        </pre>
+      </ResultsPanel>
+    </div>
+  );
+}
