@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import Image from 'next/image';
 
 const DEFAULT_MARKDOWN = `# 마크다운 미리보기
 
@@ -191,12 +190,12 @@ export default function MarkdownViewer() {
                                                 <li className="my-1">{children}</li>
                                             ),
                                             img: ({ src, alt }) => (
-                                                <div className="relative w-full h-64 my-4">
-                                                    <Image
-                                                        src={typeof src === 'string' ? src : ''}
+                                                <div className="my-4">
+                                                    {/* eslint-disable-next-line @next/next/no-img-element -- 마크다운 사용자가 입력한 임의 이미지 URL을 그대로 미리보기 */}
+                                                    <img
+                                                        src={typeof src === 'string' ? src : undefined}
                                                         alt={alt || '마크다운 이미지'}
-                                                        fill
-                                                        className="object-contain rounded-lg"
+                                                        className="max-h-64 w-full rounded-lg object-contain"
                                                     />
                                                 </div>
                                             ),
