@@ -169,7 +169,7 @@ export const converters: Converter[] = [
     id: 'env-validator',
     title: '.env 검증기',
     shortTitle: '.env 검증',
-    description: '환경변수 파일의 형식, 중복 키, 빈 값을 브라우저에서 로컬로 검증합니다.',
+    description: '환경변수 파일의 형식, 중복 키, 빈 값을 검증합니다.',
     path: '/converters/env-validator',
     group: '보안',
   },

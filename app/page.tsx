@@ -22,10 +22,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-import { browserLocalToolCatalog } from './lib/converters';
 import { tools } from './lib/tool-registry';
-
-const browserLocalToolIds = browserLocalToolCatalog.map((converter) => converter.id);
 
 const toolCategories = Array.from(
   new Set(tools.map((converter) => converter.group)),
@@ -102,7 +99,7 @@ export default function Home() {
         <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <p className="text-xs font-medium text-slate-500">등록된 도구</p>
           <p className="mt-1 text-2xl font-bold tracking-tight text-slate-950">
-            {browserLocalToolIds.length}
+            {tools.length}
           </p>
         </div>
         <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
@@ -113,8 +110,8 @@ export default function Home() {
         </div>
         <div className="rounded-md border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <p className="text-xs font-medium text-slate-500">작업 방식</p>
-          <p className="mt-1 text-base font-semibold text-slate-950">브라우저 중심</p>
-          <p className="text-xs text-slate-500">대부분의 변환은 로컬에서 처리됩니다.</p>
+          <p className="mt-1 text-base font-semibold text-slate-950">로컬 우선</p>
+          <p className="text-xs text-slate-500">일부 도구는 서버 또는 외부 API를 사용합니다.</p>
         </div>
       </section>
 
@@ -122,7 +119,7 @@ export default function Home() {
         <div className="border-b border-slate-200 px-5 py-4">
           <h2 className="text-base font-semibold text-slate-950">전체 도구</h2>
           <p className="mt-1 text-sm text-slate-500">
-            브라우저에서 로컬로 실행되는 도구이며, 필요한 변환 작업으로 바로 이동합니다.
+            필요한 변환 작업으로 바로 이동합니다. 로컬 처리 여부는 각 도구 상태에서 확인합니다.
           </p>
 
           <div aria-label="도구 카테고리 필터" className="mt-4 flex flex-wrap gap-2" role="group">
@@ -186,8 +183,8 @@ export default function Home() {
                 <p className="app-tool-row-description">{converter.description}</p>
                 <div className="app-tool-row-status">
                   <span>{converter.statusLabel}</span>
-                  <span>브라우저 로컬</span>
-                  <span>복사 지원</span>
+                  <span>{converter.localOnly ? '브라우저 로컬' : '서버/API 사용'}</span>
+                  <span>{converter.hasCopyButton ? '복사 지원' : '다운로드 지원'}</span>
                 </div>
               </Link>
             );

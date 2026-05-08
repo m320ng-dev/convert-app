@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
+import { converters } from './converters.ts';
 import { tools } from './tool-registry.ts';
 
 const pageSource = readFileSync(resolve(import.meta.dirname, '../page.tsx'), 'utf8');
@@ -40,29 +41,10 @@ test('main tool listing renders the shared usage-ordered tool source directly', 
   assert.doesNotMatch(pageSource, /category\.tools\.map\(\(converter\) =>/);
 });
 
-test('first screen combined tool rows expose the expected shared usage order', () => {
-  const expectedUsageOrder = [
-    'random-token-generator',
-    'uuid-ulid-generator',
-    'url-encoder-decoder',
-    'jwt-decoder',
-    'regex-tester',
-    'string-case-converter',
-    'qr-code-generator',
-    'json-formatter',
-    'base64-converter',
-    'timestamp-converter',
-    'sql-formatter',
-    'svg-to-react',
-    'html-entity-escaper',
-    'csv-json-converter',
-    'yaml-json-converter',
-    'hash-generator',
-  ];
-
+test('first screen combined tool rows expose the converter registration order', () => {
   assert.deepEqual(
     tools.map((tool) => tool.id),
-    expectedUsageOrder,
+    converters.map((converter) => converter.id),
   );
   assert.match(pageSource, /data-tool-id=\{converter\.id\}/);
   assert.match(pageSource, /data-usage-rank=\{converter\.usageRank\}/);

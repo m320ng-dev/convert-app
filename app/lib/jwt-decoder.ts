@@ -192,7 +192,7 @@ async function verifyRsaJwt(
   try {
     cryptoKey = await crypto.subtle.importKey(
       'spki',
-      pemToBytes(publicKeyPem),
+      toArrayBuffer(pemToBytes(publicKeyPem)),
       rsaAlgorithms[algorithm],
       false,
       ['verify'],
@@ -204,7 +204,7 @@ async function verifyRsaJwt(
   return crypto.subtle.verify(
     rsaAlgorithms[algorithm],
     cryptoKey,
-    base64UrlToBytes(decoded.signature),
+    toArrayBuffer(base64UrlToBytes(decoded.signature)),
     new TextEncoder().encode(decoded.signingInput),
   );
 }
@@ -299,6 +299,13 @@ function base64UrlToBytes(value: string): Uint8Array {
   const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
 
   return Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+
+  return buffer;
 }
 
 function toBase64Url(bytes: Uint8Array): string {
